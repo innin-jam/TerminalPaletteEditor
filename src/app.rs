@@ -6,13 +6,23 @@ pub struct App {
     cursor: usize,
 }
 
-#[derive(Debug, Clone)]
-pub struct Color(pub u8, pub u8, pub u8);
+#[derive(Debug, Clone, Copy)]
+pub struct Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+
+impl Color {
+    pub fn to_hex(&self) -> String {
+        format!("{:02x}{:02x}{:02x}", self.r, self.g, self.b)
+    }
+}
 
 impl App {
     pub fn new() -> Self {
         App {
-            grid: vec![Color(0, 0, 0)],
+            grid: [Color { r: 0, g: 0, b: 0 }; 8 * 8].to_vec(),
             grid_width: 8,
             grid_height: 8,
             running: true,
@@ -48,9 +58,18 @@ impl App {
     }
 
     pub fn set_color_at(&mut self, color: Color, pos: usize) {
-        for _ in 0..(pos.saturating_sub(self.grid.iter().count() - 1)) {
-            self.grid.push(Color(0, 0, 0))
+        if pos < self.grid.len() {
+            self.grid[pos] = color;
+        } else {
+            panic!("Tried to edit color outside grid")
         }
-        self.grid[pos] = color;
+    }
+
+    pub fn get_color_at(&self, pos: usize) -> Option<Color> {
+        if pos < self.grid.len() {
+            Some(self.grid[pos].clone())
+        } else {
+            None
+        }
     }
 }

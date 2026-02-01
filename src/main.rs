@@ -49,7 +49,14 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
         if let Event::Key(key) = event::read()? {
             match (key.modifiers, key.code) {
                 (KeyModifiers::NONE, key_code) => match key_code {
-                    KeyCode::Char(' ') => app.set_color_at(Color(255, 0, 0), app.get_cursor()),
+                    KeyCode::Char(' ') => app.set_color_at(
+                        Color {
+                            r: 0,
+                            g: 125,
+                            b: 125,
+                        },
+                        app.get_cursor(),
+                    ),
                     KeyCode::Left => app.move_cursor(-1, 0),
                     KeyCode::Down => app.move_cursor(0, 1),
                     KeyCode::Up => app.move_cursor(0, -1),

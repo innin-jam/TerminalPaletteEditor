@@ -1,10 +1,13 @@
+use std::arch::x86_64::_mm512_maskz_broadcast_f64x4;
+
 use ratatui::{
     Frame,
     buffer::Buffer,
     crossterm::style::Color,
     layout::{Alignment, Constraint, Layout, Rect},
     style::Stylize,
-    widgets::{Block, Padding, Paragraph, Widget},
+    symbols::line::DOUBLE,
+    widgets::{Block, BorderType, Borders, Padding, Paragraph, Widget},
 };
 
 use crate::app::App;
@@ -26,14 +29,29 @@ impl Widget for Grid<'_> {
         let cells = rows.iter().flat_map(|&row| horizontal.split(row).to_vec());
 
         for (i, cell) in cells.enumerate() {
-            Paragraph::new(format!("Area {:02}", i + 1))
-                .alignment(Alignment::Center)
-                .block(
-                    Block::new()
-                        .bg(self.app.get_colour_at_cursor())
-                        .padding(Padding::new(0, 0, cell.height / 2, 0)),
-                )
-                .render(cell, buf);
+            if let Some(color) = self.app.get_color_at(i) {
+                let swatch = Paragraph::new(format!("{}", color.to_hex()))
+                    .alignment(Alignment::Center)
+                    .bg(Color::Rgb {
+                        r: color.r,
+                        g: color.g,
+                        b: color.b,
+                    });
+
+                if self.app.get_cursor() == i {
+                    swatch
+                        .block(
+                            Block::bordered()
+                                .border_type(BorderType::Thick)
+                                .padding(Padding::new(0, 0, cell.height / 2, 0)),
+                        )
+                        .render(cell, buf);
+                } else {
+                    swatch
+                        .block(Block::default().padding(Padding::new(0, 0, cell.height / 2, 0)))
+                        .render(cell, buf);
+                }
+            }
         }
     }
 }
@@ -41,7 +59,21 @@ impl Widget for Grid<'_> {
 pub fn ui(frame: &mut Frame, app: &App) {
     let area = frame.area();
     let (cols, rows) = app.get_dimensions();
-    let grid = Grid { cols, rows };
+    let grid = Grid { cols, rows, app };
 
-    frame.render_widget(grid, area);
+    let centered = Layout::horizontal([
+        Constraint::Min(0),
+        Constraint::Min(7 * 8),
+        Constraint::Min(0),
+    ])
+    .split(
+        Layout::vertical([
+            Constraint::Min(0),
+            Constraint::Min(3 * 8),
+            Constraint::Min(0),
+        ])
+        .split(area)[1],
+    );
+    frame.render_widget(Block::new().bg(Color::Rgb { r: 0, b: 0, g: 0 }), area);
+    frame.render_widget(grid, centered[1]);
 }
