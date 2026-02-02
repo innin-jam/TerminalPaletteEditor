@@ -1,27 +1,25 @@
-use std::arch::x86_64::_mm512_maskz_broadcast_f64x4;
-
 use ratatui::{
     Frame,
     buffer::Buffer,
     crossterm::style::Color,
     layout::{Alignment, Constraint, Layout, Rect},
     style::Stylize,
-    symbols::line::DOUBLE,
-    widgets::{Block, BorderType, Borders, Padding, Paragraph, Widget},
+    widgets::{Block, BorderType, Padding, Paragraph, Widget},
 };
 
 use crate::app::App;
 
 struct Grid<'a> {
-    cols: usize,
-    rows: usize,
+    cel_width: u16,
+    cel_height: u16,
     app: &'a App,
 }
 
+// TODO: removed Grid.{cols, rows}; vvv should instead use let (cols, rows) = (app.get_cols, app.get_rows)
 impl Widget for Grid<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let col_constraints = (0..self.cols).map(|_| Constraint::Length(9));
-        let row_constraints = (0..self.rows).map(|_| Constraint::Length(3));
+        let col_constraints = (0..self.cols).map(|_| Constraint::Length(self.cel_width));
+        let row_constraints = (0..self.rows).map(|_| Constraint::Length(self.cel_height));
         let horizontal = Layout::horizontal(col_constraints);
         let vertical = Layout::vertical(row_constraints);
 
@@ -59,17 +57,24 @@ impl Widget for Grid<'_> {
 pub fn ui(frame: &mut Frame, app: &App) {
     let area = frame.area();
     let (cols, rows) = app.get_dimensions();
-    let grid = Grid { cols, rows, app };
+    let grid = Grid {
+        cols,
+        rows,
+        cel_width: 10,
+        cel_height: 4,
+        app,
+    };
 
+    // TODO: got rid of cols, should instead use app.get_rows(), app.get_cols()
     let centered = Layout::horizontal([
         Constraint::Min(0),
-        Constraint::Min(7 * 8),
+        Constraint::Min(grid.cel_width * grid.cols as u16),
         Constraint::Min(0),
     ])
     .split(
         Layout::vertical([
             Constraint::Min(0),
-            Constraint::Min(3 * 8),
+            Constraint::Min(grid.cel_height * grid.rows as u16),
             Constraint::Min(0),
         ])
         .split(area)[1],

@@ -22,7 +22,7 @@ impl Color {
 impl App {
     pub fn new() -> Self {
         App {
-            grid: [Color { r: 0, g: 0, b: 0 }; 8 * 8].to_vec(),
+            grid: vec![Color { r: 0, g: 0, b: 0 }; 8 * 8],
             grid_width: 8,
             grid_height: 8,
             running: true,
@@ -38,10 +38,7 @@ impl App {
         self.running
     }
 
-    pub fn get_grid(&self) -> Vec<Color> {
-        self.grid.clone()
-    }
-
+    // TODO: split into get_rows(), get_cols(); rename width, height to cols, rows
     pub fn get_dimensions(&self) -> (usize, usize) {
         (self.grid_width, self.grid_height)
     }

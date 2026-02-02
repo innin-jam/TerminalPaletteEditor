@@ -46,6 +46,7 @@ fn main() -> io::Result<()> {
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()> {
     while app.is_running() {
         terminal.draw(|f| ui(f, app))?;
+
         if let Event::Key(key) = event::read()? {
             match (key.modifiers, key.code) {
                 (KeyModifiers::NONE, key_code) => match key_code {
