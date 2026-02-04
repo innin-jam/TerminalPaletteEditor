@@ -27,11 +27,11 @@
 - [x] `<space>p`: insert system-clipboard at cursor
 - [x] `<space><S-r>`: replace color with system-clipboard at cursor
 - [x] `h` `j` `k` `l`
-- [ ] underline only label while in insert mode
-- [ ] h/H for hue shift on selected color
-- [ ] s/S for saturation shift on selected color
-- [ ] v/V for value shift on selected color
-- [ ] more keybinds like above for othor colorspaces
+- [ ] color leader_mode
+  - [ ] h/H for hue shift on selected color
+  - [ ] s/S for saturation shift on selected color
+  - [ ] v/V for value shift on selected color
+  - [ ] more keybinds like above for othor colorspaces
 - [ ] multiselection
 - [ ] color fg text according to swatch color, so it's always readable
 - [ ] toggle cursor, text visibility
