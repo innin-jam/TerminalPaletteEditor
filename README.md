@@ -36,6 +36,7 @@
 - [ ] color fg text according to swatch color, so it's always readable
 - [ ] toggle cursor, text visibility
 - [ ] set bg color
+- [ ] undo/redo
 
 ## References
 

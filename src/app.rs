@@ -187,7 +187,7 @@ impl App {
     }
 
     pub fn append_mode(&mut self) {
-        let success = self.insert_color_at(Color::black(), self.get_cursor());
+        let success = self.insert_color_at(Color::black(), self.get_cursor() + 1);
         match success {
             Ok(_) => {
                 self.cursor = (self.cursor + 1).min(self.grid.len() - 1);
@@ -202,6 +202,17 @@ impl App {
         match success {
             Ok(_) => {
                 self.cursor = self.grid.len() - 1;
+                self.insert_mode();
+            }
+            Err(_) => {}
+        }
+    }
+
+    pub fn insert_at_start(&mut self) {
+        let success = self.insert_color_at(Color::black(), 0);
+        match success {
+            Ok(_) => {
+                self.cursor = 0;
                 self.insert_mode();
             }
             Err(_) => {}

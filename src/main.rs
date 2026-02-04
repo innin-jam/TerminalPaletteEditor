@@ -1,7 +1,7 @@
 mod app;
 mod ui;
 
-use std::{io, time::SystemTime};
+use std::io;
 
 use ratatui::{
     Terminal,
@@ -86,6 +86,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                     (KeyModifiers::SHIFT, key_code) => match key_code {
                         KeyCode::Char('P') => app.paste_before(),
                         KeyCode::Char('A') => app.insert_at_end(),
+                        KeyCode::Char('I') => app.insert_at_start(),
                         KeyCode::Char('R') => app.replace(),
                         _ => {}
                     },
