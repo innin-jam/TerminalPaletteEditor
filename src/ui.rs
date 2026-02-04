@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Block, BorderType, Padding, Paragraph, Widget},
 };
 
-use crate::app::App;
+use crate::app::{self, App};
 
 struct Grid<'a> {
     cel_width: u16,
@@ -18,8 +18,8 @@ struct Grid<'a> {
 // TODO: removed Grid.{cols, rows}; vvv should instead use let (cols, rows) = (app.get_cols, app.get_rows)
 impl Widget for Grid<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let col_constraints = (0..self.cols).map(|_| Constraint::Length(self.cel_width));
-        let row_constraints = (0..self.rows).map(|_| Constraint::Length(self.cel_height));
+        let col_constraints = (0..self.app.get_cols()).map(|_| Constraint::Length(self.cel_width));
+        let row_constraints = (0..self.app.get_rows()).map(|_| Constraint::Length(self.cel_height));
         let horizontal = Layout::horizontal(col_constraints);
         let vertical = Layout::vertical(row_constraints);
 
@@ -27,54 +27,70 @@ impl Widget for Grid<'_> {
         let cells = rows.iter().flat_map(|&row| horizontal.split(row).to_vec());
 
         for (i, cell) in cells.enumerate() {
-            if let Some(color) = self.app.get_color_at(i) {
-                let swatch = Paragraph::new(format!("{}", color.to_hex()))
-                    .alignment(Alignment::Center)
-                    .bg(Color::Rgb {
-                        r: color.r,
-                        g: color.g,
-                        b: color.b,
-                    });
+            let is_on_cursor = self.app.get_cursor() == i;
+            let mut label = "".to_string();
+            let mut color = Color::Reset;
 
-                if self.app.get_cursor() == i {
-                    swatch
-                        .block(
-                            Block::bordered()
-                                .border_type(BorderType::Thick)
-                                .padding(Padding::new(0, 0, cell.height / 2, 0)),
-                        )
-                        .render(cell, buf);
-                } else {
-                    swatch
-                        .block(Block::default().padding(Padding::new(0, 0, cell.height / 2, 0)))
-                        .render(cell, buf);
+            if is_on_cursor && let app::Mode::Insert(contents) = self.app.get_mode() {
+                label = contents.clone();
+                label.push('▏');
+                if let Ok(rgb) = app::Color::try_from_hex_str(&contents) {
+                    color = Color::Rgb {
+                        r: rgb.r,
+                        g: rgb.g,
+                        b: rgb.b,
+                    };
+                }
+            } else {
+                if let Some(rgb) = self.app.get_color_at(i) {
+                    label = rgb.to_hex();
+                    color = Color::Rgb {
+                        r: rgb.r,
+                        g: rgb.g,
+                        b: rgb.b,
+                    };
                 }
             }
+
+            let swatch = Paragraph::new(label);
+
+            if is_on_cursor {
+                swatch
+                    .block(
+                        Block::bordered()
+                            .border_type(BorderType::Thick)
+                            .padding(Padding::new(1, 0, 0, 0)),
+                    )
+                    .alignment(Alignment::Left)
+            } else {
+                swatch
+                    .block(Block::default().padding(Padding::new(0, 0, cell.height / 2, 0)))
+                    .alignment(Alignment::Center)
+            }
+            .bg(color)
+            .render(cell, buf);
         }
     }
 }
 
 pub fn ui(frame: &mut Frame, app: &App) {
     let area = frame.area();
-    let (cols, rows) = app.get_dimensions();
     let grid = Grid {
-        cols,
-        rows,
         cel_width: 10,
-        cel_height: 4,
+        cel_height: 3,
         app,
     };
 
     // TODO: got rid of cols, should instead use app.get_rows(), app.get_cols()
     let centered = Layout::horizontal([
         Constraint::Min(0),
-        Constraint::Min(grid.cel_width * grid.cols as u16),
+        Constraint::Min(grid.cel_width * app.get_cols() as u16),
         Constraint::Min(0),
     ])
     .split(
         Layout::vertical([
             Constraint::Min(0),
-            Constraint::Min(grid.cel_height * grid.rows as u16),
+            Constraint::Min(grid.cel_height * app.get_rows() as u16),
             Constraint::Min(0),
         ])
         .split(area)[1],
