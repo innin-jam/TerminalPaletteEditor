@@ -1,3 +1,4 @@
+use crate::app::color::Color;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
 
 pub struct App {
@@ -9,6 +10,7 @@ pub struct App {
     mode: Mode,
     leader_mode: Option<LeaderMode>,
     register: Option<Color>,
+    multiplier: u8,
 }
 
 pub enum Mode {
@@ -18,41 +20,64 @@ pub enum Mode {
 
 pub enum LeaderMode {
     Space,
-    Color(u8),
+    Color,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Color {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-}
-
-impl Color {
-    pub fn black() -> Self {
-        Self { r: 0, g: 0, b: 0 }
+// TODO: make color mod private and only publicly reexport the Color struct and some associated functions
+pub mod color {
+    #[derive(Debug, Clone, Copy)]
+    pub struct Color {
+        pub r: Channel,
+        pub g: Channel,
+        pub b: Channel,
     }
 
-    pub fn to_hex(&self) -> String {
-        format!("{:02x}{:02x}{:02x}", self.r, self.g, self.b)
+    type Channel = u8;
+
+    pub fn saturating_add(channel: Channel, rhs: i16) -> Channel {
+        (channel as i16 + rhs).clamp(0, u8::MAX as i16) as u8
     }
 
-    pub fn try_from_hex_str(hex: &str) -> Result<Self, ()> {
-        if hex.len() != 6 {
-            return Err(());
+    impl Color {
+        pub fn black() -> Self {
+            Self::new(0, 0, 0)
         }
 
-        let Ok(r) = u8::from_str_radix(&hex[0..2], 16) else {
-            return Err(());
-        };
-        let Ok(g) = u8::from_str_radix(&hex[2..4], 16) else {
-            return Err(());
-        };
-        let Ok(b) = u8::from_str_radix(&hex[4..6], 16) else {
-            return Err(());
-        };
+        pub fn new(r: u8, g: u8, b: u8) -> Self {
+            Self { r, g, b }
+        }
 
-        Ok(Self { r, g, b })
+        pub fn to_hex(&self) -> String {
+            format!("{:02x}{:02x}{:02x}", self.r, self.g, self.b)
+        }
+
+        pub fn try_from_hex_str(hex: &str) -> Result<Self, ()> {
+            if hex.len() != 6 {
+                return Err(());
+            }
+
+            let Ok(r) = u8::from_str_radix(&hex[0..2], 16) else {
+                return Err(());
+            };
+            let Ok(g) = u8::from_str_radix(&hex[2..4], 16) else {
+                return Err(());
+            };
+            let Ok(b) = u8::from_str_radix(&hex[4..6], 16) else {
+                return Err(());
+            };
+
+            Ok(Self::new(r, g, b))
+        }
+
+        pub fn add_red(&mut self, r: i16) {
+            self.r = saturating_add(self.r, r)
+        }
+        pub fn add_green(&mut self, g: i16) {
+            self.g = saturating_add(self.g, g)
+        }
+        pub fn add_blue(&mut self, b: i16) {
+            self.b = saturating_add(self.b, b)
+        }
     }
 }
 
@@ -67,6 +92,7 @@ impl App {
             mode: Mode::Normal,
             leader_mode: None,
             register: None,
+            multiplier: 64,
         }
     }
 
@@ -97,6 +123,14 @@ impl App {
     pub fn try_get_color_at(&self, index: usize) -> Result<Color, ()> {
         if index < self.grid.len() {
             Ok(self.grid[index].clone())
+        } else {
+            Err(())
+        }
+    }
+
+    fn try_get_mut_color_at(&mut self, index: usize) -> Result<&mut Color, ()> {
+        if index < self.grid.len() {
+            Ok(&mut self.grid[index])
         } else {
             Err(())
         }
@@ -137,6 +171,7 @@ impl App {
         }
     }
 
+    // --- Normal Mode ---
     pub fn normal_mode(&mut self) {
         self.mode = Mode::Normal;
     }
@@ -171,7 +206,7 @@ impl App {
 
     pub fn replace(&mut self) {
         if let Some(color) = self.register {
-            self.set_color_at(color, self.get_cursor());
+            let _ = self.set_color_at(color, self.get_cursor());
         }
     }
 
@@ -256,6 +291,7 @@ impl App {
         self.leader_mode = None;
     }
 
+    // --- Space Leader Mode ---
     pub fn space_leader_mode(&mut self) {
         self.leader_mode = Some(LeaderMode::Space);
     }
@@ -281,6 +317,29 @@ impl App {
     pub fn replace_clipboard(&mut self) {
         if let Ok(color) = try_color_from_clipboard() {
             let _ = self.set_color_at(color, self.get_cursor());
+        }
+    }
+
+    // --- Color Leader Mode ---
+    pub fn color_leader_mode(&mut self) {
+        self.leader_mode = Some(LeaderMode::Color)
+    }
+
+    pub fn inc_color_multiplier(&mut self) {
+        self.multiplier = self.multiplier.saturating_mul(4).min(64);
+    }
+
+    pub fn dec_color_multiplier(&mut self) {
+        self.multiplier = self.multiplier.saturating_div(4).max(1);
+    }
+
+    pub fn operate_on_color<F>(&mut self, f: F)
+    where
+        F: Fn(&mut Color, u8),
+    {
+        let m = self.multiplier;
+        if let Ok(color) = self.try_get_mut_color_at(self.get_cursor()) {
+            f(color, m);
         }
     }
 }

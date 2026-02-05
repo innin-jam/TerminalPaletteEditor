@@ -28,6 +28,7 @@
 - [x] `<space><S-r>`: replace color with system-clipboard at cursor
 - [x] `h` `j` `k` `l`
 - [ ] color leader_mode
+  - [ ] multiplier indicator
   - [ ] h/H for hue shift on selected color
   - [ ] s/S for saturation shift on selected color
   - [ ] v/V for value shift on selected color

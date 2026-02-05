@@ -48,11 +48,18 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
         terminal.draw(|f| ui(f, app))?;
 
         if let Event::Key(key) = event::read()? {
-            // TODO: vvv clean this mess up vvv
+            // TODO: vvv clean up this mess vvv (maybe extract into functions or something)
             if let Some(leader_mode) = app.get_leader_mode() {
                 match leader_mode {
-                    LeaderMode::Color(multiplier) => match (key.modifiers, key.code) {
-                        (KeyModifiers::NONE, KeyCode::Char('r')) => {}
+                    LeaderMode::Color => match (key.modifiers, key.code) {
+                        (KeyModifiers::NONE, KeyCode::Char('z')) => app.inc_color_multiplier(),
+                        (KeyModifiers::SHIFT, KeyCode::Char('Z')) => app.dec_color_multiplier(),
+                        (KeyModifiers::NONE, KeyCode::Char('r')) => {
+                            app.operate_on_color(|color, m| color.add_red(m.into()))
+                        }
+                        (KeyModifiers::SHIFT, KeyCode::Char('R')) => {
+                            app.operate_on_color(|color, m| color.add_red(-i16::from(m)))
+                        }
                         (KeyModifiers::NONE, KeyCode::Esc) => {
                             app.clear_leader_mode();
                             continue;
@@ -70,9 +77,9 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                             _ => {}
                         }
                         app.clear_leader_mode();
-                        continue;
                     }
                 }
+                continue;
             }
             match app.get_mode() {
                 Mode::Insert(_) => match (key.modifiers, key.code) {
@@ -100,6 +107,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                         _ => {}
                     },
                     (KeyModifiers::NONE, key_code) => match key_code {
+                        KeyCode::Char('z') => app.color_leader_mode(),
                         KeyCode::Char('i') => app.insert_mode(),
                         KeyCode::Char('a') => app.append_mode(),
                         KeyCode::Char('d') => app.delete(),
