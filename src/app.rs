@@ -242,13 +242,11 @@ impl App {
     pub fn insert_confirm(&mut self) {
         if let Mode::Insert(ref contents) = self.mode {
             if let Ok(color) = Color::try_from_hex_str(&contents) {
-                self.set_color_at(color, self.get_cursor());
+                let _ = self.set_color_at(color, self.get_cursor());
             }
             self.mode = Mode::Normal;
         }
     }
-
-    // TODO: THATS WHERE I LAST STOPPED WORKING
 
     pub fn get_leader_mode(&self) -> &Option<LeaderMode> {
         &self.leader_mode
@@ -282,7 +280,7 @@ impl App {
 
     pub fn replace_clipboard(&mut self) {
         if let Ok(color) = try_color_from_clipboard() {
-            self.set_color_at(color, self.get_cursor());
+            let _ = self.set_color_at(color, self.get_cursor());
         }
     }
 }

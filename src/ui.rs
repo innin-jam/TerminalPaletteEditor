@@ -15,7 +15,6 @@ struct Grid<'a> {
     app: &'a App,
 }
 
-// TODO: removed Grid.{cols, rows}; vvv should instead use let (cols, rows) = (app.get_cols, app.get_rows)
 impl Widget for Grid<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let col_constraints = (0..self.app.get_cols()).map(|_| Constraint::Length(self.cel_width));
@@ -42,7 +41,7 @@ impl Widget for Grid<'_> {
                     };
                 }
             } else {
-                if let Some(rgb) = self.app.get_color_at(i) {
+                if let Ok(rgb) = self.app.try_get_color_at(i) {
                     label = rgb.to_hex();
                     color = Color::Rgb {
                         r: rgb.r,
@@ -81,7 +80,6 @@ pub fn ui(frame: &mut Frame, app: &App) {
         app,
     };
 
-    // TODO: got rid of cols, should instead use app.get_rows(), app.get_cols()
     let centered = Layout::horizontal([
         Constraint::Min(0),
         Constraint::Min(grid.cel_width * app.get_cols() as u16),

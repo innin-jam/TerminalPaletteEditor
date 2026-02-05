@@ -32,9 +32,10 @@
   - [ ] s/S for saturation shift on selected color
   - [ ] v/V for value shift on selected color
   - [ ] more keybinds like above for othor colorspaces
+
 - [ ] multiselection
 - [ ] color fg text according to swatch color, so it's always readable
-- [ ] toggle cursor, text visibility
+- [ ] toggle cursor, text
 - [ ] set bg color
 - [ ] undo/redo
 

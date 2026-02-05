@@ -48,8 +48,17 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
         terminal.draw(|f| ui(f, app))?;
 
         if let Event::Key(key) = event::read()? {
+            // TODO: vvv clean this mess up vvv
             if let Some(leader_mode) = app.get_leader_mode() {
                 match leader_mode {
+                    LeaderMode::Color(multiplier) => match (key.modifiers, key.code) {
+                        (KeyModifiers::NONE, KeyCode::Char('r')) => {}
+                        (KeyModifiers::NONE, KeyCode::Esc) => {
+                            app.clear_leader_mode();
+                            continue;
+                        }
+                        _ => {}
+                    },
                     LeaderMode::Space => {
                         match (key.modifiers, key.code) {
                             (KeyModifiers::SHIFT, KeyCode::Char('P')) => {
