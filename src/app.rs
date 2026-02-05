@@ -18,6 +18,7 @@ pub enum Mode {
 
 pub enum LeaderMode {
     Space,
+    Color(u8),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -93,47 +94,46 @@ impl App {
         self.cursor
     }
 
-    pub fn get_color_at(&self, index: usize) -> Option<Color> {
+    pub fn try_get_color_at(&self, index: usize) -> Result<Color, ()> {
         if index < self.grid.len() {
-            Some(self.grid[index].clone())
+            Ok(self.grid[index].clone())
         } else {
-            None
+            Err(())
         }
     }
 
-    fn set_color_at(&mut self, color: Color, index: usize) -> Option<Color> {
-        let out = self.get_color_at(index);
+    fn set_color_at(&mut self, color: Color, index: usize) -> Result<Color, ()> {
+        let out = self.try_get_color_at(index);
         if index < self.grid.len() {
             self.grid[index] = color;
             return out;
         } else {
             eprint!("Tried to set color outside grid");
-            return None;
+            return Err(());
         }
     }
 
-    fn insert_color_at(&mut self, color: Color, index: usize) -> Result<(), &str> {
+    fn try_insert_color_at(&mut self, color: Color, index: usize) -> Result<(), ()> {
         if index > self.grid.len() {
-            Err("Can't insert color outside grid")
+            Err(())
         } else if self.grid.len() >= self.cols * self.rows {
-            Err("Can't insert color; grid full")
+            Err(())
         } else {
             self.grid.insert(index, color);
             Ok(())
         }
     }
 
-    fn delete_color_at(&mut self, index: usize) -> Option<Color> {
+    fn try_delete_color_at(&mut self, index: usize) -> Result<Color, ()> {
         // Ensure a minimum of one color
         if self.grid.len() <= 1 {
-            return None;
+            return Err(());
         }
 
         if index < self.grid.len() {
-            Some(self.grid.remove(index))
+            Ok(self.grid.remove(index))
         } else {
-            eprint!("Tried to delete color outside grid");
-            return None;
+            return Err(());
         }
     }
 
@@ -149,23 +149,23 @@ impl App {
     }
 
     pub fn delete(&mut self) {
-        self.register = self.delete_color_at(self.get_cursor());
+        self.register = self.try_delete_color_at(self.get_cursor()).ok();
         self.cursor = self.get_cursor().min(self.grid.len() - 1)
     }
 
     pub fn yank(&mut self) {
-        self.register = self.get_color_at(self.get_cursor())
+        self.register = self.try_get_color_at(self.get_cursor()).ok()
     }
 
     pub fn paste_after(&mut self) {
         if let Some(color) = self.register {
-            let _ = self.insert_color_at(color, self.get_cursor() + 1);
+            let _ = self.try_insert_color_at(color, self.get_cursor() + 1);
         }
     }
 
     pub fn paste_before(&mut self) {
         if let Some(color) = self.register {
-            let _ = self.insert_color_at(color, self.get_cursor());
+            let _ = self.try_insert_color_at(color, self.get_cursor());
         }
     }
 
@@ -179,7 +179,7 @@ impl App {
         match self.mode {
             Mode::Insert(_) => {}
             Mode::Normal => {
-                if let Some(color) = self.get_color_at(self.get_cursor()) {
+                if let Ok(color) = self.try_get_color_at(self.get_cursor()) {
                     self.mode = Mode::Insert(color.to_hex());
                 }
             }
@@ -187,7 +187,7 @@ impl App {
     }
 
     pub fn append_mode(&mut self) {
-        let success = self.insert_color_at(Color::black(), self.get_cursor() + 1);
+        let success = self.try_insert_color_at(Color::black(), self.get_cursor() + 1);
         match success {
             Ok(_) => {
                 self.cursor = (self.cursor + 1).min(self.grid.len() - 1);
@@ -198,7 +198,7 @@ impl App {
     }
 
     pub fn insert_at_end(&mut self) {
-        let success = self.insert_color_at(Color::black(), self.grid.len());
+        let success = self.try_insert_color_at(Color::black(), self.grid.len());
         match success {
             Ok(_) => {
                 self.cursor = self.grid.len() - 1;
@@ -209,7 +209,7 @@ impl App {
     }
 
     pub fn insert_at_start(&mut self) {
-        let success = self.insert_color_at(Color::black(), 0);
+        let success = self.try_insert_color_at(Color::black(), 0);
         match success {
             Ok(_) => {
                 self.cursor = 0;
@@ -254,48 +254,47 @@ impl App {
         &self.leader_mode
     }
 
-    pub fn space_leader_mode(&mut self) {
-        self.leader_mode = Some(LeaderMode::Space);
-    }
-
     pub fn clear_leader_mode(&mut self) {
         self.leader_mode = None;
     }
 
-    fn yank_to_clipboard_at(&mut self, index: usize) {
-        let color = self.grid.get(index).unwrap().to_hex();
-        todo!("Yanked {color} to clipboard");
+    pub fn space_leader_mode(&mut self) {
+        self.leader_mode = Some(LeaderMode::Space);
     }
 
     pub fn yank_to_clipboard(&mut self) {
-        self.yank_to_clipboard_at(self.get_cursor());
+        if let Ok(color) = self.try_get_color_at(self.get_cursor()) {
+            todo!("Yanked {} to clipboard", color.to_hex());
+        }
     }
 
-    fn paste_clipboard_at(&mut self, index: usize) {
-        // TODO: handle error gracefully
-        let clipboard = ClipboardContext::new().unwrap().get_contents().unwrap();
-        if let Ok(color) = Color::try_from_hex_str(&clipboard) {
-            self.grid.insert(index, color);
+    pub fn paste_clipboard_before(&mut self) {
+        if let Ok(color) = try_color_from_clipboard() {
+            let _ = self.try_insert_color_at(color, self.get_cursor());
         }
     }
 
     pub fn paste_clipboard_after(&mut self) {
-        self.paste_clipboard_at(self.get_cursor() + 1);
-    }
-
-    pub fn paste_clipboard_before(&mut self) {
-        self.paste_clipboard_at(self.get_cursor());
-    }
-
-    fn replace_clipboard_at(&mut self, index: usize) {
-        // TODO: handle error gracefully
-        let clipboard = ClipboardContext::new().unwrap().get_contents().unwrap();
-        if let Ok(color) = Color::try_from_hex_str(&clipboard) {
-            self.set_color_at(color, index);
+        if let Ok(color) = try_color_from_clipboard() {
+            let _ = self.try_insert_color_at(color, self.get_cursor() + 1);
         }
     }
 
     pub fn replace_clipboard(&mut self) {
-        self.replace_clipboard_at(self.get_cursor());
+        if let Ok(color) = try_color_from_clipboard() {
+            self.set_color_at(color, self.get_cursor());
+        }
     }
+}
+
+fn try_color_from_clipboard() -> Result<Color, ()> {
+    if let Ok(mut clipboard) = ClipboardContext::new()
+        && let Ok(contents) = clipboard.get_contents()
+    {
+        // TODO: allow importing `#RRGGBB` and `(RR, GG, BB)`
+        if let Ok(color) = Color::try_from_hex_str(&contents) {
+            return Ok(color);
+        };
+    };
+    Err(())
 }
