@@ -33,7 +33,7 @@ impl Widget for Grid<'_> {
             if is_on_cursor && let app::Mode::Insert(contents) = self.app.get_mode() {
                 label = contents.clone();
                 label.push('▏');
-                if let Ok(rgb) = app::color::Color::try_from_hex_str(&contents) {
+                if let Ok(rgb) = crate::app::Color::try_from_hex_str(&contents) {
                     color = Color::Rgb {
                         r: rgb.r,
                         g: rgb.g,

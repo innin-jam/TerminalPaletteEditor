@@ -1,4 +1,4 @@
-use crate::app::color::Color;
+pub use crate::app::color::Color;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
 
 pub struct App {
@@ -23,8 +23,7 @@ pub enum LeaderMode {
     Color,
 }
 
-// TODO: make color mod private and only publicly reexport the Color struct and some associated functions
-pub mod color {
+mod color {
     #[derive(Debug, Clone, Copy)]
     pub struct Color {
         pub r: Channel,
@@ -39,7 +38,7 @@ pub mod color {
     }
 
     impl Color {
-        pub fn black() -> Self {
+        pub fn default() -> Self {
             Self::new(0, 0, 0)
         }
 
@@ -84,7 +83,7 @@ pub mod color {
 impl App {
     pub fn new() -> Self {
         App {
-            grid: vec![Color::black(); 8 * 8],
+            grid: vec![Color::default()],
             cols: 8,
             rows: 8,
             running: true,
@@ -222,7 +221,7 @@ impl App {
     }
 
     pub fn append_mode(&mut self) {
-        let success = self.try_insert_color_at(Color::black(), self.get_cursor() + 1);
+        let success = self.try_insert_color_at(Color::default(), self.get_cursor() + 1);
         match success {
             Ok(_) => {
                 self.cursor = (self.cursor + 1).min(self.grid.len() - 1);
@@ -233,7 +232,7 @@ impl App {
     }
 
     pub fn insert_at_end(&mut self) {
-        let success = self.try_insert_color_at(Color::black(), self.grid.len());
+        let success = self.try_insert_color_at(Color::default(), self.grid.len());
         match success {
             Ok(_) => {
                 self.cursor = self.grid.len() - 1;
@@ -244,7 +243,7 @@ impl App {
     }
 
     pub fn insert_at_start(&mut self) {
-        let success = self.try_insert_color_at(Color::black(), 0);
+        let success = self.try_insert_color_at(Color::default(), 0);
         match success {
             Ok(_) => {
                 self.cursor = 0;
