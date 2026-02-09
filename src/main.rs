@@ -6,14 +6,14 @@ use std::io;
 use ratatui::{
     Terminal,
     crossterm::{
-        event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
+        event::{self, DisableMouseCapture, EnableMouseCapture, Event},
         execute,
         terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     },
     prelude::{Backend, CrosstermBackend},
 };
 
-use crate::app::{App, LeaderMode, Mode};
+use crate::app::App;
 use crate::ui::ui;
 
 fn main() -> io::Result<()> {
@@ -48,115 +48,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
         terminal.draw(|f| ui(f, app))?;
 
         if let Event::Key(key) = event::read()? {
-            // TODO: vvv clean up this mess vvv (maybe extract into functions or something)
-            // Let keybinds be handled by App
-
-            // Example from ratatui demo:
-
-            /*
-            let mut last_tick = Instant::now();
-            loop {
-                terminal.draw(|frame| ui::render(frame, &mut app))?;
-
-                let timeout = tick_rate.saturating_sub(last_tick.elapsed());
-                if !event::poll(timeout)? {
-                    app.on_tick();
-                    last_tick = Instant::now();
-                    continue;
-                }
-                if let Some(key) = event::read()?.as_key_press_event() {
-                    match key.code {
-                        KeyCode::Char('h') | KeyCode::Left => app.on_left(),
-                        KeyCode::Char('j') | KeyCode::Down => app.on_down(),
-                        KeyCode::Char('k') | KeyCode::Up => app.on_up(),
-                        KeyCode::Char('l') | KeyCode::Right => app.on_right(),
-                        KeyCode::Char(c) => app.on_key(c),
-                        _ => {}
-                    }
-                }
-                if app.should_quit {
-                    return Ok(());
-                }
-            }
-            */
-
-            if let Some(leader_mode) = app.get_leader_mode() {
-                match leader_mode {
-                    LeaderMode::Color => match (key.modifiers, key.code) {
-                        (KeyModifiers::NONE, KeyCode::Char('z')) => app.inc_color_multiplier(),
-                        (KeyModifiers::SHIFT, KeyCode::Char('Z')) => app.dec_color_multiplier(),
-                        (KeyModifiers::NONE, KeyCode::Char('r')) => {
-                            app.operate_on_color(|color, m| color.add_red(m.into()))
-                        }
-                        (KeyModifiers::SHIFT, KeyCode::Char('R')) => {
-                            app.operate_on_color(|color, m| color.add_red(-i16::from(m)))
-                        }
-                        (KeyModifiers::NONE, KeyCode::Esc) => {
-                            app.clear_leader_mode();
-                            continue;
-                        }
-                        _ => {}
-                    },
-                    LeaderMode::Space => {
-                        match (key.modifiers, key.code) {
-                            (KeyModifiers::SHIFT, KeyCode::Char('P')) => {
-                                app.paste_clipboard_before()
-                            }
-                            (KeyModifiers::SHIFT, KeyCode::Char('R')) => app.replace_clipboard(),
-                            (KeyModifiers::NONE, KeyCode::Char('p')) => app.paste_clipboard_after(),
-                            (KeyModifiers::NONE, KeyCode::Char('y')) => app.yank_to_clipboard(),
-                            _ => {}
-                        }
-                        app.clear_leader_mode();
-                    }
-                }
-                continue;
-            }
-            match app.get_mode() {
-                Mode::Insert(_) => match (key.modifiers, key.code) {
-                    (KeyModifiers::CONTROL, key_code) => match key_code {
-                        KeyCode::Char('w') => app.insert_clear_chars(),
-                        _ => {}
-                    },
-                    (KeyModifiers::NONE, key_code) => match key_code {
-                        KeyCode::Enter => app.insert_confirm(),
-                        KeyCode::Esc => app.normal_mode(),
-                        KeyCode::Char(c) if "012345678293abcdef".contains(c) => {
-                            app.insert_append_char(c)
-                        }
-                        KeyCode::Backspace => app.insert_delete_char(),
-                        _ => {}
-                    },
-                    _ => {}
-                },
-                Mode::Normal => match (key.modifiers, key.code) {
-                    (KeyModifiers::SHIFT, key_code) => match key_code {
-                        KeyCode::Char('P') => app.paste_before(),
-                        KeyCode::Char('A') => app.insert_at_end(),
-                        KeyCode::Char('I') => app.insert_at_start(),
-                        KeyCode::Char('R') => app.replace(),
-                        _ => {}
-                    },
-                    (KeyModifiers::NONE, key_code) => match key_code {
-                        KeyCode::Char('z') => app.color_leader_mode(),
-                        KeyCode::Char('i') => app.insert_mode(),
-                        KeyCode::Char('a') => app.append_mode(),
-                        KeyCode::Char('d') => app.delete(),
-                        KeyCode::Char('p') => app.paste_after(),
-                        KeyCode::Char('y') => app.yank(),
-                        KeyCode::Char(' ') => app.space_leader_mode(),
-                        KeyCode::Left | KeyCode::Char('h') => app.move_cursor(-1, 0),
-                        KeyCode::Down | KeyCode::Char('j') => app.move_cursor(0, 1),
-                        KeyCode::Up | KeyCode::Char('k') => app.move_cursor(0, -1),
-                        KeyCode::Right | KeyCode::Char('l') => app.move_cursor(1, 0),
-                        _ => {}
-                    },
-                    (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
-                        app.stop();
-                    }
-                    _ => {}
-                },
-            }
+            app.handle_events(key.code, key.modifiers);
         }
     }
     Ok(())

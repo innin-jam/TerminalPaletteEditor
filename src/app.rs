@@ -1,7 +1,7 @@
 pub use crate::app::color::Color;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
-use eyre::{Error, Result, eyre};
-use ratatui::DefaultTerminal;
+use eyre::{Result, eyre};
+use ratatui::crossterm::event::{KeyCode, KeyModifiers};
 // TODO: use eyre errors instead of default
 
 pub struct App {
@@ -13,17 +13,17 @@ pub struct App {
     mode: Mode,
     leader_mode: Option<LeaderMode>,
     register: Option<Color>,
-    multiplier: u8,
+    multiplier: i32,
 }
 
 pub enum Mode {
     Normal,
     Insert(String),
+    Color,
 }
 
 pub enum LeaderMode {
     Space,
-    Color,
 }
 
 mod color;
@@ -67,6 +67,7 @@ impl App {
         &self.mode
     }
 
+    // TODO: if we wanted to add selection functionality, this would have to output an enum{single, selection(start, end)} or simply a selection(start, end)
     pub fn get_cursor(&self) -> usize {
         self.cursor
     }
@@ -166,13 +167,8 @@ impl App {
     }
 
     pub fn insert_mode(&mut self) {
-        match self.mode {
-            Mode::Insert(_) => {}
-            Mode::Normal => {
-                if let Ok(color) = self.try_get_color_at(self.get_cursor()) {
-                    self.mode = Mode::Insert(color.to_hex());
-                }
-            }
+        if let Ok(color) = self.try_get_color_at(self.get_cursor()) {
+            self.mode = Mode::Insert(color.to_hex());
         }
     }
 
@@ -277,7 +273,7 @@ impl App {
 
     // --- Color Leader Mode ---
     pub fn color_leader_mode(&mut self) {
-        self.leader_mode = Some(LeaderMode::Color)
+        self.mode = Mode::Color;
     }
 
     pub fn inc_color_multiplier(&mut self) {
@@ -290,11 +286,114 @@ impl App {
 
     pub fn operate_on_color<F>(&mut self, f: F)
     where
-        F: Fn(&mut Color, u8),
+        F: Fn(&mut Color, i32),
     {
         let m = self.multiplier;
         if let Ok(color) = self.try_get_mut_color_at(self.get_cursor()) {
             f(color, m);
+        }
+    }
+
+    pub fn handle_events(&mut self, key_code: KeyCode, key_modifiers: KeyModifiers) {
+        if let Some(leader_mode) = self.get_leader_mode() {
+            match leader_mode {
+                LeaderMode::Space => {
+                    self.space_leader_mode_keymap(key_code, key_modifiers);
+                }
+            }
+            self.clear_leader_mode();
+            return;
+        }
+        match self.get_mode() {
+            Mode::Normal => self.normal_mode_keymap(key_modifiers, key_code),
+            Mode::Insert(_) => self.insert_mode_keymap(key_code, key_modifiers),
+            Mode::Color => self.color_mode_keymap(key_code, key_modifiers),
+        }
+    }
+
+    fn normal_mode_keymap(&mut self, key_modifiers: KeyModifiers, key_code: KeyCode) {
+        match (key_modifiers, key_code) {
+            (KeyModifiers::SHIFT, key_code) => match key_code {
+                KeyCode::Char('P') => self.paste_before(),
+                KeyCode::Char('A') => self.insert_at_end(),
+                KeyCode::Char('I') => self.insert_at_start(),
+                KeyCode::Char('R') => self.replace(),
+                _ => {}
+            },
+            (KeyModifiers::NONE, key_code) => match key_code {
+                KeyCode::Char('c') => self.color_leader_mode(),
+                KeyCode::Char('i') => self.insert_mode(),
+                KeyCode::Char('a') => self.append_mode(),
+                KeyCode::Char('d') => self.delete(),
+                KeyCode::Char('p') => self.paste_after(),
+                KeyCode::Char('y') => self.yank(),
+                KeyCode::Char(' ') => self.space_leader_mode(),
+                KeyCode::Left | KeyCode::Char('h') => self.move_cursor(-1, 0),
+                KeyCode::Down | KeyCode::Char('j') => self.move_cursor(0, 1),
+                KeyCode::Up | KeyCode::Char('k') => self.move_cursor(0, -1),
+                KeyCode::Right | KeyCode::Char('l') => self.move_cursor(1, 0),
+                _ => {}
+            },
+            (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
+                self.stop();
+            }
+            _ => {}
+        }
+    }
+
+    fn insert_mode_keymap(&mut self, key_code: KeyCode, key_modifiers: KeyModifiers) {
+        match (key_modifiers, key_code) {
+            (KeyModifiers::CONTROL, key_code) => match key_code {
+                KeyCode::Char('w') => self.insert_clear_chars(),
+                _ => {}
+            },
+            (KeyModifiers::NONE, key_code) => match key_code {
+                KeyCode::Enter => self.insert_confirm(),
+                KeyCode::Esc => self.normal_mode(),
+                KeyCode::Char(c) if "012345678293abcdef".contains(c) => self.insert_append_char(c),
+                KeyCode::Backspace => self.insert_delete_char(),
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    fn space_leader_mode_keymap(&mut self, key_code: KeyCode, key_modifiers: KeyModifiers) {
+        match (key_modifiers, key_code) {
+            (KeyModifiers::SHIFT, KeyCode::Char('P')) => self.paste_clipboard_before(),
+            (KeyModifiers::SHIFT, KeyCode::Char('R')) => self.replace_clipboard(),
+            (KeyModifiers::NONE, KeyCode::Char('p')) => self.paste_clipboard_after(),
+            (KeyModifiers::NONE, KeyCode::Char('y')) => self.yank_to_clipboard(),
+            _ => {}
+        }
+    }
+
+    fn color_mode_keymap(&mut self, key_code: KeyCode, key_modifiers: KeyModifiers) {
+        match (key_modifiers, key_code) {
+            (KeyModifiers::CONTROL, KeyCode::Char('a')) => self.inc_color_multiplier(),
+            (KeyModifiers::CONTROL, KeyCode::Char('x')) => self.dec_color_multiplier(),
+            (KeyModifiers::NONE, KeyCode::Char('r')) => {
+                self.operate_on_color(|color, m| color.add_red(m))
+            }
+            (KeyModifiers::SHIFT, KeyCode::Char('R')) => {
+                self.operate_on_color(|color, m| color.add_red(-m))
+            }
+            (KeyModifiers::NONE, KeyCode::Char('g')) => {
+                self.operate_on_color(|color, m| color.add_green(m))
+            }
+            (KeyModifiers::SHIFT, KeyCode::Char('G')) => {
+                self.operate_on_color(|color, m| color.add_green(-m))
+            }
+            (KeyModifiers::NONE, KeyCode::Char('b')) => {
+                self.operate_on_color(|color, m| color.add_blue(m))
+            }
+            (KeyModifiers::SHIFT, KeyCode::Char('B')) => {
+                self.operate_on_color(|color, m| color.add_blue(-m))
+            }
+            (KeyModifiers::NONE, KeyCode::Esc) => {
+                self.normal_mode();
+            }
+            _ => {}
         }
     }
 }

@@ -1,14 +1,18 @@
+use color::{Oklab, OpaqueColor};
+
+// TODO: Change to Oklab colorspace as the main representation of colors
+
 #[derive(Debug, Clone, Copy)]
 pub struct Color {
-    pub r: Channel,
-    pub g: Channel,
-    pub b: Channel,
+    color: OpaqueColor<Oklab>,
 }
+
+// TODO: remove channel, instead use the color's stuff
 
 type Channel = u8;
 
-pub fn saturating_add(channel: Channel, rhs: i16) -> Channel {
-    (channel as i16 + rhs).clamp(0, u8::MAX as i16) as u8
+pub fn saturating_add(channel: Channel, rhs: i32) -> Channel {
+    (channel as i32 + rhs).clamp(0, u8::MAX as i32) as u8
 }
 
 impl Color {
@@ -42,13 +46,14 @@ impl Color {
         Ok(Self::new(r, g, b))
     }
 
-    pub fn add_red(&mut self, r: i16) {
+    // TODO: change to color's functions here
+    pub fn add_red(&mut self, r: i32) {
         self.r = saturating_add(self.r, r)
     }
-    pub fn add_green(&mut self, g: i16) {
+    pub fn add_green(&mut self, g: i32) {
         self.g = saturating_add(self.g, g)
     }
-    pub fn add_blue(&mut self, b: i16) {
+    pub fn add_blue(&mut self, b: i32) {
         self.b = saturating_add(self.b, b)
     }
 }

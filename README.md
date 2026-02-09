@@ -1,5 +1,9 @@
 # Terminal Palette Designer
 
+## Last Edit
+
+inside ./src/app/color.rs, switch to Oklab
+
 ## Todo
 
 - [x] center align grid
@@ -39,6 +43,10 @@
 - [ ] toggle cursor, text
 - [ ] set bg color
 - [ ] undo/redo
+
+## Color Mode
+
+Z -> enter one time color mode
 
 ## References
 
