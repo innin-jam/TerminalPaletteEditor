@@ -49,6 +49,37 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
 
         if let Event::Key(key) = event::read()? {
             // TODO: vvv clean up this mess vvv (maybe extract into functions or something)
+            // Let keybinds be handled by App
+
+            // Example from ratatui demo:
+
+            /*
+            let mut last_tick = Instant::now();
+            loop {
+                terminal.draw(|frame| ui::render(frame, &mut app))?;
+
+                let timeout = tick_rate.saturating_sub(last_tick.elapsed());
+                if !event::poll(timeout)? {
+                    app.on_tick();
+                    last_tick = Instant::now();
+                    continue;
+                }
+                if let Some(key) = event::read()?.as_key_press_event() {
+                    match key.code {
+                        KeyCode::Char('h') | KeyCode::Left => app.on_left(),
+                        KeyCode::Char('j') | KeyCode::Down => app.on_down(),
+                        KeyCode::Char('k') | KeyCode::Up => app.on_up(),
+                        KeyCode::Char('l') | KeyCode::Right => app.on_right(),
+                        KeyCode::Char(c) => app.on_key(c),
+                        _ => {}
+                    }
+                }
+                if app.should_quit {
+                    return Ok(());
+                }
+            }
+            */
+
             if let Some(leader_mode) = app.get_leader_mode() {
                 match leader_mode {
                     LeaderMode::Color => match (key.modifiers, key.code) {

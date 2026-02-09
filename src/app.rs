@@ -1,5 +1,8 @@
 pub use crate::app::color::Color;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
+use eyre::{Error, Result, eyre};
+use ratatui::DefaultTerminal;
+// TODO: use eyre errors instead of default
 
 pub struct App {
     grid: Vec<Color>,
@@ -23,62 +26,7 @@ pub enum LeaderMode {
     Color,
 }
 
-mod color {
-    #[derive(Debug, Clone, Copy)]
-    pub struct Color {
-        pub r: Channel,
-        pub g: Channel,
-        pub b: Channel,
-    }
-
-    type Channel = u8;
-
-    pub fn saturating_add(channel: Channel, rhs: i16) -> Channel {
-        (channel as i16 + rhs).clamp(0, u8::MAX as i16) as u8
-    }
-
-    impl Color {
-        pub fn default() -> Self {
-            Self::new(0, 0, 0)
-        }
-
-        pub fn new(r: u8, g: u8, b: u8) -> Self {
-            Self { r, g, b }
-        }
-
-        pub fn to_hex(&self) -> String {
-            format!("{:02x}{:02x}{:02x}", self.r, self.g, self.b)
-        }
-
-        pub fn try_from_hex_str(hex: &str) -> Result<Self, ()> {
-            if hex.len() != 6 {
-                return Err(());
-            }
-
-            let Ok(r) = u8::from_str_radix(&hex[0..2], 16) else {
-                return Err(());
-            };
-            let Ok(g) = u8::from_str_radix(&hex[2..4], 16) else {
-                return Err(());
-            };
-            let Ok(b) = u8::from_str_radix(&hex[4..6], 16) else {
-                return Err(());
-            };
-
-            Ok(Self::new(r, g, b))
-        }
-
-        pub fn add_red(&mut self, r: i16) {
-            self.r = saturating_add(self.r, r)
-        }
-        pub fn add_green(&mut self, g: i16) {
-            self.g = saturating_add(self.g, g)
-        }
-        pub fn add_blue(&mut self, b: i16) {
-            self.b = saturating_add(self.b, b)
-        }
-    }
-}
+mod color;
 
 impl App {
     pub fn new() -> Self {
@@ -94,6 +42,10 @@ impl App {
             multiplier: 64,
         }
     }
+
+    // TODO: Move logic from main to inside App
+    // TODO: Create handle_events function, called by main
+    // TODO: Move all keybinds into handle_events
 
     pub fn stop(&mut self) {
         self.running = false;
@@ -119,58 +71,62 @@ impl App {
         self.cursor
     }
 
-    pub fn try_get_color_at(&self, index: usize) -> Result<Color, ()> {
+    pub fn try_get_color_at(&self, index: usize) -> Result<Color> {
         if index < self.grid.len() {
             Ok(self.grid[index].clone())
         } else {
-            Err(())
+            Err(eyre!("Failed to get color at {index}; out of range"))
         }
     }
 
-    fn try_get_mut_color_at(&mut self, index: usize) -> Result<&mut Color, ()> {
+    fn try_get_mut_color_at(&mut self, index: usize) -> Result<&mut Color> {
         if index < self.grid.len() {
             Ok(&mut self.grid[index])
         } else {
-            Err(())
+            Err(eyre!("Failed to get mut color at {index}; out of range"))
         }
     }
 
-    fn set_color_at(&mut self, color: Color, index: usize) -> Result<Color, ()> {
+    fn set_color_at(&mut self, color: Color, index: usize) -> Result<Color> {
         let out = self.try_get_color_at(index);
         if index < self.grid.len() {
             self.grid[index] = color;
             return out;
         } else {
-            eprint!("Tried to set color outside grid");
-            return Err(());
+            Err(eyre!("Can't set color outside grid"))
         }
     }
 
-    fn try_insert_color_at(&mut self, color: Color, index: usize) -> Result<(), ()> {
+    fn try_insert_color_at(&mut self, color: Color, index: usize) -> Result<()> {
         if index > self.grid.len() {
-            Err(())
+            Err(eyre!("Can't insert color outside grid"))
         } else if self.grid.len() >= self.cols * self.rows {
-            Err(())
+            Err(eyre!(
+                "Tried to insert color at {index}, which is out of bounds {}, {}",
+                self.cols,
+                self.rows
+            ))
         } else {
             self.grid.insert(index, color);
             Ok(())
         }
     }
 
-    fn try_delete_color_at(&mut self, index: usize) -> Result<Color, ()> {
+    fn try_delete_color_at(&mut self, index: usize) -> Result<Color> {
         // Ensure a minimum of one color
         if self.grid.len() <= 1 {
-            return Err(());
+            return Err(eyre!("Can't delete final color"));
         }
 
         if index < self.grid.len() {
             Ok(self.grid.remove(index))
         } else {
-            return Err(());
+            return Err(eyre!("Can't delete color outside grid"));
         }
     }
 
     // --- Normal Mode ---
+    /// Enter normal mode
     pub fn normal_mode(&mut self) {
         self.mode = Mode::Normal;
     }
@@ -343,7 +299,7 @@ impl App {
     }
 }
 
-fn try_color_from_clipboard() -> Result<Color, ()> {
+fn try_color_from_clipboard() -> Result<Color> {
     if let Ok(mut clipboard) = ClipboardContext::new()
         && let Ok(contents) = clipboard.get_contents()
     {
@@ -351,6 +307,8 @@ fn try_color_from_clipboard() -> Result<Color, ()> {
         if let Ok(color) = Color::try_from_hex_str(&contents) {
             return Ok(color);
         };
+
+        return Err(eyre!("Failed to parse clipboard contents"));
     };
-    Err(())
+    Err(eyre!("Can't access system clipboard"))
 }
