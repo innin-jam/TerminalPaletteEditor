@@ -4,7 +4,9 @@ use color::{Oklab, OpaqueColor};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Color {
-    color: OpaqueColor<Oklab>,
+    r: u8,
+    g: u8,
+    b: u8,
 }
 
 // TODO: remove channel, instead use the color's stuff
@@ -24,8 +26,12 @@ impl Color {
         Self { r, g, b }
     }
 
-    pub fn to_hex(&self) -> String {
+    pub fn hex(&self) -> String {
         format!("{:02x}{:02x}{:02x}", self.r, self.g, self.b)
+    }
+
+    pub fn rgb(&self) -> (u8, u8, u8) {
+        (self.r, self.g, self.b)
     }
 
     pub fn try_from_hex_str(hex: &str) -> Result<Self, ()> {

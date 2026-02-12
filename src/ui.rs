@@ -17,8 +17,8 @@ struct Grid<'a> {
 
 impl Widget for Grid<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let col_constraints = (0..self.app.get_cols()).map(|_| Constraint::Length(self.cel_width));
-        let row_constraints = (0..self.app.get_rows()).map(|_| Constraint::Length(self.cel_height));
+        let col_constraints = (0..self.app.cols()).map(|_| Constraint::Length(self.cel_width));
+        let row_constraints = (0..self.app.rows()).map(|_| Constraint::Length(self.cel_height));
         let horizontal = Layout::horizontal(col_constraints);
         let vertical = Layout::vertical(row_constraints);
 
@@ -26,28 +26,23 @@ impl Widget for Grid<'_> {
         let cells = rows.iter().flat_map(|&row| horizontal.split(row).to_vec());
 
         for (i, cell) in cells.enumerate() {
-            let is_on_cursor = self.app.get_cursor() == i;
+            let is_on_cursor = self.app.cursor() == i;
             let mut label = "".to_string();
             let mut color = Color::Reset;
 
-            if is_on_cursor && let app::Mode::Insert(contents) = self.app.get_mode() {
+            if is_on_cursor && let app::Mode::Insert(contents) = self.app.mode() {
                 label = contents.clone();
                 label.push('▏');
-                if let Ok(rgb) = crate::app::Color::try_from_hex_str(&contents) {
-                    color = Color::Rgb {
-                        r: rgb.r,
-                        g: rgb.g,
-                        b: rgb.b,
-                    };
+                if let Ok((r, g, b)) =
+                    crate::app::Color::try_from_hex_str(&contents).map(|c| c.rgb())
+                {
+                    color = Color::Rgb { r, g, b };
                 }
             } else {
-                if let Ok(rgb) = self.app.try_get_color_at(i) {
-                    label = rgb.to_hex();
-                    color = Color::Rgb {
-                        r: rgb.r,
-                        g: rgb.g,
-                        b: rgb.b,
-                    };
+                if let Ok(rgb) = self.app.color_at(i) {
+                    label = rgb.hex();
+                    let (r, g, b) = rgb.rgb();
+                    color = Color::Rgb { r, g, b };
                 }
             }
 
@@ -82,13 +77,13 @@ pub fn ui(frame: &mut Frame, app: &App) {
 
     let centered = Layout::horizontal([
         Constraint::Min(0),
-        Constraint::Min(grid.cel_width * app.get_cols() as u16),
+        Constraint::Min(grid.cel_width * app.cols() as u16),
         Constraint::Min(0),
     ])
     .split(
         Layout::vertical([
             Constraint::Min(0),
-            Constraint::Min(grid.cel_height * app.get_rows() as u16),
+            Constraint::Min(grid.cel_height * app.rows() as u16),
             Constraint::Min(0),
         ])
         .split(area)[1],

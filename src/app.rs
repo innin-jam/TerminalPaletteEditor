@@ -2,7 +2,8 @@ pub use crate::app::color::Color;
 use cli_clipboard::{ClipboardContext, ClipboardProvider};
 use eyre::{Result, eyre};
 use ratatui::crossterm::event::{KeyCode, KeyModifiers};
-// TODO: use eyre errors instead of default
+
+mod color;
 
 pub struct App {
     grid: Vec<Color>,
@@ -14,6 +15,7 @@ pub struct App {
     leader_mode: Option<LeaderMode>,
     register: Option<Color>,
     multiplier: i32,
+    action: Option<Action>,
 }
 
 pub enum Mode {
@@ -26,7 +28,38 @@ pub enum LeaderMode {
     Space,
 }
 
-mod color;
+enum Action {
+    AppendMode,
+    ColorMode,
+    Delete,
+    InsertAtEnd,
+    InsertAtSart,
+    InsertMode,
+    MoveDown,
+    MoveLeft,
+    MoveRight,
+    MoveUp,
+    NormalMode,
+    InsertConfirm,
+    InsertAppendChar(char),
+    InsertDeleteChar,
+    InsertClear,
+    PasteAfter,
+    PasteBefore,
+    PasteClipboardAfter,
+    PasteClipboardBefore,
+    Quit,
+    Replace,
+    SpaceLeaderMode,
+    Yank,
+    YankToClipboard,
+    ColorAddRed,
+    ColorAddGreen,
+    ColorAddBlue,
+    ColorRemoveRed,
+    ColorRemoveGreen,
+    ColorRemoveBlue,
+}
 
 impl App {
     pub fn new() -> Self {
@@ -40,6 +73,7 @@ impl App {
             leader_mode: None,
             register: None,
             multiplier: 64,
+            action: None,
         }
     }
 
@@ -47,32 +81,32 @@ impl App {
     // TODO: Create handle_events function, called by main
     // TODO: Move all keybinds into handle_events
 
-    pub fn stop(&mut self) {
+    pub fn quit(&mut self) {
         self.running = false;
     }
 
-    pub fn is_running(&self) -> bool {
+    pub fn running(&self) -> bool {
         self.running
     }
 
-    pub fn get_cols(&self) -> usize {
+    pub fn cols(&self) -> usize {
         self.cols
     }
 
-    pub fn get_rows(&self) -> usize {
+    pub fn rows(&self) -> usize {
         self.rows
     }
 
-    pub fn get_mode(&self) -> &Mode {
+    pub fn mode(&self) -> &Mode {
         &self.mode
     }
 
     // TODO: if we wanted to add selection functionality, this would have to output an enum{single, selection(start, end)} or simply a selection(start, end)
-    pub fn get_cursor(&self) -> usize {
+    pub fn cursor(&self) -> usize {
         self.cursor
     }
 
-    pub fn try_get_color_at(&self, index: usize) -> Result<Color> {
+    pub fn color_at(&self, index: usize) -> Result<Color> {
         if index < self.grid.len() {
             Ok(self.grid[index].clone())
         } else {
@@ -80,7 +114,7 @@ impl App {
         }
     }
 
-    fn try_get_mut_color_at(&mut self, index: usize) -> Result<&mut Color> {
+    fn mut_color_at(&mut self, index: usize) -> Result<&mut Color> {
         if index < self.grid.len() {
             Ok(&mut self.grid[index])
         } else {
@@ -89,7 +123,7 @@ impl App {
     }
 
     fn set_color_at(&mut self, color: Color, index: usize) -> Result<Color> {
-        let out = self.try_get_color_at(index);
+        let out = self.color_at(index);
         if index < self.grid.len() {
             self.grid[index] = color;
             return out;
@@ -98,7 +132,7 @@ impl App {
         }
     }
 
-    fn try_insert_color_at(&mut self, color: Color, index: usize) -> Result<()> {
+    fn insert_color_at(&mut self, color: Color, index: usize) -> Result<()> {
         if index > self.grid.len() {
             Err(eyre!("Can't insert color outside grid"))
         } else if self.grid.len() >= self.cols * self.rows {
@@ -113,7 +147,7 @@ impl App {
         }
     }
 
-    fn try_delete_color_at(&mut self, index: usize) -> Result<Color> {
+    fn delete_color_at(&mut self, index: usize) -> Result<Color> {
         // Ensure a minimum of one color
         if self.grid.len() <= 1 {
             return Err(eyre!("Can't delete final color"));
@@ -123,6 +157,44 @@ impl App {
             Ok(self.grid.remove(index))
         } else {
             return Err(eyre!("Can't delete color outside grid"));
+        }
+    }
+
+    fn handle_action(&mut self) {
+        let Some(ref action) = self.action else {
+            return;
+        };
+        match action {
+            Action::AppendMode => self.append_mode(),
+            Action::ColorMode => self.color_leader_mode(),
+            Action::Delete => self.delete(),
+            Action::InsertAtEnd => self.insert_at_end(),
+            Action::InsertAtSart => self.insert_at_start(),
+            Action::InsertMode => self.insert_mode(),
+            Action::MoveDown => self.move_cursor(0, 1),
+            Action::MoveLeft => self.move_cursor(-1, 0),
+            Action::MoveRight => self.move_cursor(1, 0),
+            Action::MoveUp => self.move_cursor(0, -1),
+            Action::NormalMode => self.normal_mode(),
+            Action::InsertConfirm => self.insert_confirm(),
+            Action::InsertAppendChar(char) => self.insert_append_char(c),
+            Action::InsertDeleteChar => self.insert_delete_char(),
+            Action::InsertClear => self.insert_clear_chars(),
+            Action::PasteAfter => self.paste_after(),
+            Action::PasteBefore => self.paste_before(),
+            Action::PasteClipboardAfter => self.paste_clipboard_after(),
+            Action::PasteClipboardBefore => self.paste_clipboard_before(),
+            Action::Quit => self.quit(),
+            Action::Replace => self.replace(),
+            Action::SpaceLeaderMode => self.space_leader_mode(),
+            Action::Yank => self.yank(),
+            Action::YankToClipboard => self.yank_to_clipboard(),
+            Action::ColorAddRed => self.operate_on_color(|color, m| color.add_red(m)),
+            Action::ColorAddGreen => self.operate_on_color(|color, m| color.add_green(m)),
+            Action::ColorAddBlue => self.operate_on_color(|color, m| color.add_blue(m)),
+            Action::ColorRemoveRed => self.operate_on_color(|color, m| color.add_red(-m)),
+            Action::ColorRemoveGreen => self.operate_on_color(|color, m| color.add_green(-m)),
+            Action::ColorRemoveBlue => self.operate_on_color(|color, m| color.add_blue(-m)),
         }
     }
 
@@ -140,40 +212,40 @@ impl App {
     }
 
     pub fn delete(&mut self) {
-        self.register = self.try_delete_color_at(self.get_cursor()).ok();
-        self.cursor = self.get_cursor().min(self.grid.len() - 1)
+        self.register = self.delete_color_at(self.cursor()).ok();
+        self.cursor = self.cursor().min(self.grid.len() - 1)
     }
 
     pub fn yank(&mut self) {
-        self.register = self.try_get_color_at(self.get_cursor()).ok()
+        self.register = self.color_at(self.cursor()).ok()
     }
 
     pub fn paste_after(&mut self) {
         if let Some(color) = self.register {
-            let _ = self.try_insert_color_at(color, self.get_cursor() + 1);
+            let _ = self.insert_color_at(color, self.cursor() + 1);
         }
     }
 
     pub fn paste_before(&mut self) {
         if let Some(color) = self.register {
-            let _ = self.try_insert_color_at(color, self.get_cursor());
+            let _ = self.insert_color_at(color, self.cursor());
         }
     }
 
     pub fn replace(&mut self) {
         if let Some(color) = self.register {
-            let _ = self.set_color_at(color, self.get_cursor());
+            let _ = self.set_color_at(color, self.cursor());
         }
     }
 
     pub fn insert_mode(&mut self) {
-        if let Ok(color) = self.try_get_color_at(self.get_cursor()) {
-            self.mode = Mode::Insert(color.to_hex());
+        if let Ok(color) = self.color_at(self.cursor()) {
+            self.mode = Mode::Insert(color.hex());
         }
     }
 
     pub fn append_mode(&mut self) {
-        let success = self.try_insert_color_at(Color::default(), self.get_cursor() + 1);
+        let success = self.insert_color_at(Color::default(), self.cursor() + 1);
         match success {
             Ok(_) => {
                 self.cursor = (self.cursor + 1).min(self.grid.len() - 1);
@@ -184,7 +256,7 @@ impl App {
     }
 
     pub fn insert_at_end(&mut self) {
-        let success = self.try_insert_color_at(Color::default(), self.grid.len());
+        let success = self.insert_color_at(Color::default(), self.grid.len());
         match success {
             Ok(_) => {
                 self.cursor = self.grid.len() - 1;
@@ -195,7 +267,7 @@ impl App {
     }
 
     pub fn insert_at_start(&mut self) {
-        let success = self.try_insert_color_at(Color::default(), 0);
+        let success = self.insert_color_at(Color::default(), 0);
         match success {
             Ok(_) => {
                 self.cursor = 0;
@@ -228,7 +300,7 @@ impl App {
     pub fn insert_confirm(&mut self) {
         if let Mode::Insert(ref contents) = self.mode {
             if let Ok(color) = Color::try_from_hex_str(&contents) {
-                let _ = self.set_color_at(color, self.get_cursor());
+                let _ = self.set_color_at(color, self.cursor());
             }
             self.mode = Mode::Normal;
         }
@@ -248,26 +320,26 @@ impl App {
     }
 
     pub fn yank_to_clipboard(&mut self) {
-        if let Ok(color) = self.try_get_color_at(self.get_cursor()) {
-            todo!("Yanked {} to clipboard", color.to_hex());
+        if let Ok(color) = self.color_at(self.cursor()) {
+            todo!("Yanked {} to clipboard", color.hex());
         }
     }
 
     pub fn paste_clipboard_before(&mut self) {
         if let Ok(color) = try_color_from_clipboard() {
-            let _ = self.try_insert_color_at(color, self.get_cursor());
+            let _ = self.insert_color_at(color, self.cursor());
         }
     }
 
     pub fn paste_clipboard_after(&mut self) {
         if let Ok(color) = try_color_from_clipboard() {
-            let _ = self.try_insert_color_at(color, self.get_cursor() + 1);
+            let _ = self.insert_color_at(color, self.cursor() + 1);
         }
     }
 
     pub fn replace_clipboard(&mut self) {
         if let Ok(color) = try_color_from_clipboard() {
-            let _ = self.set_color_at(color, self.get_cursor());
+            let _ = self.set_color_at(color, self.cursor());
         }
     }
 
@@ -289,7 +361,7 @@ impl App {
         F: Fn(&mut Color, i32),
     {
         let m = self.multiplier;
-        if let Ok(color) = self.try_get_mut_color_at(self.get_cursor()) {
+        if let Ok(color) = self.mut_color_at(self.cursor()) {
             f(color, m);
         }
     }
@@ -304,7 +376,7 @@ impl App {
             self.clear_leader_mode();
             return;
         }
-        match self.get_mode() {
+        match self.mode() {
             Mode::Normal => self.normal_mode_keymap(key_modifiers, key_code),
             Mode::Insert(_) => self.insert_mode_keymap(key_code, key_modifiers),
             Mode::Color => self.color_mode_keymap(key_code, key_modifiers),
@@ -335,7 +407,7 @@ impl App {
                 _ => {}
             },
             (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
-                self.stop();
+                self.quit();
             }
             _ => {}
         }
