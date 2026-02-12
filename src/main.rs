@@ -44,7 +44,7 @@ fn main() -> io::Result<()> {
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<()> {
-    while app.is_running() {
+    while app.running() {
         terminal.draw(|f| ui(f, app))?;
 
         if let Event::Key(key) = event::read()? {

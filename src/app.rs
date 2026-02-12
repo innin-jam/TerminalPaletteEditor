@@ -15,7 +15,6 @@ pub struct App {
     leader_mode: Option<LeaderMode>,
     register: Option<Color>,
     multiplier: i32,
-    action: Option<Action>,
 }
 
 pub enum Mode {
@@ -30,35 +29,43 @@ pub enum LeaderMode {
 
 enum Action {
     AppendMode,
+    ColorAddBlue,
+    ColorAddGreen,
+    ColorAddHue,
+    ColorAddLightness,
+    ColorAddRed,
     ColorMode,
+    ColorRemoveBlue,
+    ColorRemoveGreen,
+    ColorRemoveHue,
+    ColorRemoveLightness,
+    ColorRemoveRed,
+    DecreaseMultiplier,
     Delete,
+    IncreaseMultiplier,
+    InsertAppendChar(char),
     InsertAtEnd,
-    InsertAtSart,
+    InsertAtStart,
+    InsertClear,
+    InsertConfirm,
+    InsertDeleteChar,
     InsertMode,
     MoveDown,
     MoveLeft,
     MoveRight,
     MoveUp,
+    Noop,
     NormalMode,
-    InsertConfirm,
-    InsertAppendChar(char),
-    InsertDeleteChar,
-    InsertClear,
     PasteAfter,
     PasteBefore,
     PasteClipboardAfter,
     PasteClipboardBefore,
     Quit,
     Replace,
+    ReplaceClipboard,
     SpaceLeaderMode,
     Yank,
     YankToClipboard,
-    ColorAddRed,
-    ColorAddGreen,
-    ColorAddBlue,
-    ColorRemoveRed,
-    ColorRemoveGreen,
-    ColorRemoveBlue,
 }
 
 impl App {
@@ -73,16 +80,270 @@ impl App {
             leader_mode: None,
             register: None,
             multiplier: 64,
-            action: None,
         }
     }
 
-    // TODO: Move logic from main to inside App
-    // TODO: Create handle_events function, called by main
-    // TODO: Move all keybinds into handle_events
+    pub fn handle_events(&mut self, key_code: KeyCode, key_modifiers: KeyModifiers) {
+        if let Some(action) = self.handle_input(key_code, key_modifiers) {
+            self.leader_mode = None;
+            self.handle_action(action);
+        }
+    }
 
-    pub fn quit(&mut self) {
-        self.running = false;
+    fn handle_input(&self, key_code: KeyCode, key_modifiers: KeyModifiers) -> Option<Action> {
+        let ctrl = matches!(key_modifiers, KeyModifiers::CONTROL);
+
+        if matches!(key_code, KeyCode::Char('c')) && ctrl {
+            return Some(Action::Quit);
+        }
+
+        if let Some(leader_mode) = self.leader_mode() {
+            let leader_action = Some(match leader_mode {
+                LeaderMode::Space => match key_code {
+                    KeyCode::Esc => Action::Noop, // Clears leader, leader is cleared on `Some(action)`
+                    KeyCode::Char('P') => Action::PasteClipboardBefore,
+                    KeyCode::Char('R') => Action::ReplaceClipboard,
+                    KeyCode::Char('p') => Action::PasteClipboardAfter,
+                    KeyCode::Char('y') => Action::YankToClipboard,
+                    _ => return None,
+                },
+            });
+            return leader_action;
+        }
+
+        Some(match self.mode {
+            Mode::Normal => match key_code {
+                KeyCode::Char('h') | KeyCode::Left => Action::MoveLeft,
+                KeyCode::Char('j') | KeyCode::Down => Action::MoveDown,
+                KeyCode::Char('k') | KeyCode::Up => Action::MoveUp,
+                KeyCode::Char('l') | KeyCode::Right => Action::MoveRight,
+                KeyCode::Char('y') => Action::Yank,
+                KeyCode::Char('p') => Action::PasteAfter,
+                KeyCode::Char('P') => Action::PasteBefore,
+                KeyCode::Char('i') => Action::InsertMode,
+                KeyCode::Char('I') => Action::InsertAtStart,
+                KeyCode::Char('A') => Action::InsertAtEnd,
+                KeyCode::Char('a') => Action::AppendMode,
+                KeyCode::Char('R') => Action::Replace,
+                KeyCode::Char('c') => Action::ColorMode,
+                KeyCode::Char('d') => Action::Delete,
+                KeyCode::Char(' ') => Action::SpaceLeaderMode,
+                _ => return None,
+            },
+            Mode::Insert(_) => match key_code {
+                KeyCode::Char(c) if "012345678293abcdef".contains(c) => Action::InsertAppendChar(c),
+                KeyCode::Backspace => Action::InsertDeleteChar,
+                KeyCode::Char('w') if ctrl => Action::InsertClear,
+                KeyCode::Enter => Action::InsertConfirm,
+                KeyCode::Esc => Action::NormalMode,
+                _ => return None,
+            },
+            Mode::Color => match key_code {
+                KeyCode::Char('a') => Action::IncreaseMultiplier,
+                KeyCode::Char('x') => Action::DecreaseMultiplier,
+                KeyCode::Char('r') => Action::ColorAddRed,
+                KeyCode::Char('R') => Action::ColorRemoveRed,
+                KeyCode::Char('g') => Action::ColorAddGreen,
+                KeyCode::Char('G') => Action::ColorRemoveGreen,
+                KeyCode::Char('b') => Action::ColorAddBlue,
+                KeyCode::Char('B') => Action::ColorRemoveBlue,
+                KeyCode::Char('l') => Action::ColorAddLightness,
+                KeyCode::Char('L') => Action::ColorRemoveLightness,
+                KeyCode::Char('h') => Action::ColorAddHue,
+                KeyCode::Char('H') => Action::ColorRemoveHue,
+                KeyCode::Esc => Action::NormalMode,
+                _ => return None,
+            },
+        })
+    }
+
+    fn handle_action(&mut self, action: Action) {
+        match action {
+            Action::AppendMode => {
+                let success = self.insert_color_at(Color::default(), self.cursor() + 1);
+                match success {
+                    Ok(_) => {
+                        self.cursor = (self.cursor + 1).min(self.grid.len() - 1);
+                        self.insert_mode();
+                    }
+                    Err(_) => {}
+                }
+            }
+
+            Action::ColorMode => {
+                self.mode = Mode::Color;
+            }
+
+            Action::Delete => {
+                self.register = self.delete_color_at(self.cursor()).ok();
+                self.cursor = self.cursor().min(self.grid.len() - 1)
+            }
+
+            Action::DecreaseMultiplier => {
+                self.multiplier = self.multiplier.saturating_div(4).max(1);
+            }
+
+            Action::InsertAtEnd => {
+                let success = self.insert_color_at(Color::default(), self.grid.len());
+                match success {
+                    Ok(_) => {
+                        self.cursor = self.grid.len() - 1;
+                        self.insert_mode();
+                    }
+                    Err(_) => {}
+                }
+            }
+
+            Action::InsertAtStart => {
+                let success = self.insert_color_at(Color::default(), 0);
+                match success {
+                    Ok(_) => {
+                        self.cursor = 0;
+                        self.insert_mode();
+                    }
+                    Err(_) => {}
+                }
+            }
+
+            Action::InsertMode => {
+                self.insert_mode();
+            }
+
+            Action::MoveDown => {
+                self.cursor = self
+                    .cursor
+                    .saturating_add_signed(0 + 1 * self.cols as isize)
+                    .min(self.grid.len() - 1);
+            }
+
+            Action::MoveLeft => {
+                let x = -1;
+                self.cursor = self
+                    .cursor
+                    .saturating_add_signed(x + 0 * self.cols as isize)
+                    .min(self.grid.len() - 1);
+            }
+
+            Action::MoveRight => {
+                self.cursor = self
+                    .cursor
+                    .saturating_add_signed(1 + 0 * self.cols as isize)
+                    .min(self.grid.len() - 1);
+            }
+
+            Action::MoveUp => {
+                let y = -1;
+                self.cursor = self
+                    .cursor
+                    .saturating_add_signed(0 + y * self.cols as isize)
+                    .min(self.grid.len() - 1);
+            }
+
+            Action::Noop => {}
+
+            Action::NormalMode => {
+                self.mode = Mode::Normal;
+            }
+
+            Action::IncreaseMultiplier => {
+                self.multiplier = self.multiplier.saturating_mul(4).min(64);
+            }
+
+            Action::InsertConfirm => {
+                if let Mode::Insert(ref contents) = self.mode {
+                    if let Ok(color) = Color::try_from_hex_str(&contents) {
+                        let _ = self.set_color_at(color, self.cursor());
+                    }
+                    self.mode = Mode::Normal;
+                }
+            }
+
+            Action::InsertAppendChar(c) => {
+                if let Mode::Insert(ref mut contents) = self.mode {
+                    if contents.len() < 6 {
+                        contents.push(c);
+                    }
+                }
+            }
+
+            Action::InsertDeleteChar => {
+                if let Mode::Insert(ref mut contents) = self.mode {
+                    contents.pop();
+                }
+            }
+
+            Action::InsertClear => {
+                if let Mode::Insert(ref mut contents) = self.mode {
+                    contents.clear();
+                }
+            }
+
+            Action::PasteAfter => {
+                if let Some(color) = self.register {
+                    let _ = self.insert_color_at(color, self.cursor() + 1);
+                }
+            }
+
+            Action::PasteBefore => {
+                if let Some(color) = self.register {
+                    let _ = self.insert_color_at(color, self.cursor());
+                }
+            }
+
+            Action::PasteClipboardAfter => {
+                if let Ok(color) = try_color_from_clipboard() {
+                    let _ = self.insert_color_at(color, self.cursor() + 1);
+                }
+            }
+
+            Action::PasteClipboardBefore => {
+                if let Ok(color) = try_color_from_clipboard() {
+                    let _ = self.insert_color_at(color, self.cursor());
+                }
+            }
+
+            Action::Quit => {
+                self.running = false;
+            }
+
+            Action::Replace => {
+                if let Some(color) = self.register {
+                    let _ = self.set_color_at(color, self.cursor());
+                }
+            }
+
+            Action::ReplaceClipboard => {
+                if let Ok(color) = try_color_from_clipboard() {
+                    let _ = self.set_color_at(color, self.cursor());
+                }
+            }
+
+            Action::SpaceLeaderMode => {
+                self.leader_mode = Some(LeaderMode::Space);
+            }
+
+            Action::Yank => self.register = self.color_at(self.cursor()).ok(),
+            Action::YankToClipboard => {
+                if let Ok(color) = self.color_at(self.cursor()) {
+                    todo!("Yanked {} to clipboard", color.hex());
+                }
+            }
+
+            Action::ColorAddRed => self.operate_on_color(|color, m| color.change_red(m)),
+            Action::ColorAddGreen => self.operate_on_color(|color, m| color.change_green(m)),
+            Action::ColorAddBlue => self.operate_on_color(|color, m| color.change_blue(m)),
+            Action::ColorAddHue => self.operate_on_color(|color, m| color.adjust_hue(m)),
+            Action::ColorAddLightness => {
+                self.operate_on_color(|color, m| color.adjust_lightness(m))
+            }
+            Action::ColorRemoveRed => self.operate_on_color(|color, m| color.change_red(-m)),
+            Action::ColorRemoveGreen => self.operate_on_color(|color, m| color.change_green(-m)),
+            Action::ColorRemoveBlue => self.operate_on_color(|color, m| color.change_blue(-m)),
+            Action::ColorRemoveHue => self.operate_on_color(|color, m| color.adjust_hue(-m)),
+            Action::ColorRemoveLightness => {
+                self.operate_on_color(|color, m| color.adjust_lightness(-m))
+            }
+        }
     }
 
     pub fn running(&self) -> bool {
@@ -99,6 +360,10 @@ impl App {
 
     pub fn mode(&self) -> &Mode {
         &self.mode
+    }
+
+    pub fn leader_mode(&self) -> &Option<LeaderMode> {
+        &self.leader_mode
     }
 
     // TODO: if we wanted to add selection functionality, this would have to output an enum{single, selection(start, end)} or simply a selection(start, end)
@@ -160,312 +425,19 @@ impl App {
         }
     }
 
-    fn handle_action(&mut self) {
-        let Some(ref action) = self.action else {
-            return;
-        };
-        match action {
-            Action::AppendMode => self.append_mode(),
-            Action::ColorMode => self.color_leader_mode(),
-            Action::Delete => self.delete(),
-            Action::InsertAtEnd => self.insert_at_end(),
-            Action::InsertAtSart => self.insert_at_start(),
-            Action::InsertMode => self.insert_mode(),
-            Action::MoveDown => self.move_cursor(0, 1),
-            Action::MoveLeft => self.move_cursor(-1, 0),
-            Action::MoveRight => self.move_cursor(1, 0),
-            Action::MoveUp => self.move_cursor(0, -1),
-            Action::NormalMode => self.normal_mode(),
-            Action::InsertConfirm => self.insert_confirm(),
-            Action::InsertAppendChar(char) => self.insert_append_char(c),
-            Action::InsertDeleteChar => self.insert_delete_char(),
-            Action::InsertClear => self.insert_clear_chars(),
-            Action::PasteAfter => self.paste_after(),
-            Action::PasteBefore => self.paste_before(),
-            Action::PasteClipboardAfter => self.paste_clipboard_after(),
-            Action::PasteClipboardBefore => self.paste_clipboard_before(),
-            Action::Quit => self.quit(),
-            Action::Replace => self.replace(),
-            Action::SpaceLeaderMode => self.space_leader_mode(),
-            Action::Yank => self.yank(),
-            Action::YankToClipboard => self.yank_to_clipboard(),
-            Action::ColorAddRed => self.operate_on_color(|color, m| color.add_red(m)),
-            Action::ColorAddGreen => self.operate_on_color(|color, m| color.add_green(m)),
-            Action::ColorAddBlue => self.operate_on_color(|color, m| color.add_blue(m)),
-            Action::ColorRemoveRed => self.operate_on_color(|color, m| color.add_red(-m)),
-            Action::ColorRemoveGreen => self.operate_on_color(|color, m| color.add_green(-m)),
-            Action::ColorRemoveBlue => self.operate_on_color(|color, m| color.add_blue(-m)),
-        }
-    }
-
-    // --- Normal Mode ---
-    /// Enter normal mode
-    pub fn normal_mode(&mut self) {
-        self.mode = Mode::Normal;
-    }
-
-    pub fn move_cursor(&mut self, x: isize, y: isize) {
-        self.cursor = self
-            .cursor
-            .saturating_add_signed(x + y * self.cols as isize)
-            .min(self.grid.len() - 1);
-    }
-
-    pub fn delete(&mut self) {
-        self.register = self.delete_color_at(self.cursor()).ok();
-        self.cursor = self.cursor().min(self.grid.len() - 1)
-    }
-
-    pub fn yank(&mut self) {
-        self.register = self.color_at(self.cursor()).ok()
-    }
-
-    pub fn paste_after(&mut self) {
-        if let Some(color) = self.register {
-            let _ = self.insert_color_at(color, self.cursor() + 1);
-        }
-    }
-
-    pub fn paste_before(&mut self) {
-        if let Some(color) = self.register {
-            let _ = self.insert_color_at(color, self.cursor());
-        }
-    }
-
-    pub fn replace(&mut self) {
-        if let Some(color) = self.register {
-            let _ = self.set_color_at(color, self.cursor());
-        }
-    }
-
-    pub fn insert_mode(&mut self) {
+    fn insert_mode(&mut self) {
         if let Ok(color) = self.color_at(self.cursor()) {
             self.mode = Mode::Insert(color.hex());
         }
     }
 
-    pub fn append_mode(&mut self) {
-        let success = self.insert_color_at(Color::default(), self.cursor() + 1);
-        match success {
-            Ok(_) => {
-                self.cursor = (self.cursor + 1).min(self.grid.len() - 1);
-                self.insert_mode();
-            }
-            Err(_) => {}
-        }
-    }
-
-    pub fn insert_at_end(&mut self) {
-        let success = self.insert_color_at(Color::default(), self.grid.len());
-        match success {
-            Ok(_) => {
-                self.cursor = self.grid.len() - 1;
-                self.insert_mode();
-            }
-            Err(_) => {}
-        }
-    }
-
-    pub fn insert_at_start(&mut self) {
-        let success = self.insert_color_at(Color::default(), 0);
-        match success {
-            Ok(_) => {
-                self.cursor = 0;
-                self.insert_mode();
-            }
-            Err(_) => {}
-        }
-    }
-
-    pub fn insert_append_char(&mut self, c: char) {
-        if let Mode::Insert(ref mut contents) = self.mode {
-            if contents.len() < 6 {
-                contents.push(c);
-            }
-        }
-    }
-
-    pub fn insert_delete_char(&mut self) {
-        if let Mode::Insert(ref mut contents) = self.mode {
-            contents.pop();
-        }
-    }
-
-    pub fn insert_clear_chars(&mut self) {
-        if let Mode::Insert(ref mut contents) = self.mode {
-            contents.clear();
-        }
-    }
-
-    pub fn insert_confirm(&mut self) {
-        if let Mode::Insert(ref contents) = self.mode {
-            if let Ok(color) = Color::try_from_hex_str(&contents) {
-                let _ = self.set_color_at(color, self.cursor());
-            }
-            self.mode = Mode::Normal;
-        }
-    }
-
-    pub fn get_leader_mode(&self) -> &Option<LeaderMode> {
-        &self.leader_mode
-    }
-
-    pub fn clear_leader_mode(&mut self) {
-        self.leader_mode = None;
-    }
-
-    // --- Space Leader Mode ---
-    pub fn space_leader_mode(&mut self) {
-        self.leader_mode = Some(LeaderMode::Space);
-    }
-
-    pub fn yank_to_clipboard(&mut self) {
-        if let Ok(color) = self.color_at(self.cursor()) {
-            todo!("Yanked {} to clipboard", color.hex());
-        }
-    }
-
-    pub fn paste_clipboard_before(&mut self) {
-        if let Ok(color) = try_color_from_clipboard() {
-            let _ = self.insert_color_at(color, self.cursor());
-        }
-    }
-
-    pub fn paste_clipboard_after(&mut self) {
-        if let Ok(color) = try_color_from_clipboard() {
-            let _ = self.insert_color_at(color, self.cursor() + 1);
-        }
-    }
-
-    pub fn replace_clipboard(&mut self) {
-        if let Ok(color) = try_color_from_clipboard() {
-            let _ = self.set_color_at(color, self.cursor());
-        }
-    }
-
-    // --- Color Leader Mode ---
-    pub fn color_leader_mode(&mut self) {
-        self.mode = Mode::Color;
-    }
-
-    pub fn inc_color_multiplier(&mut self) {
-        self.multiplier = self.multiplier.saturating_mul(4).min(64);
-    }
-
-    pub fn dec_color_multiplier(&mut self) {
-        self.multiplier = self.multiplier.saturating_div(4).max(1);
-    }
-
-    pub fn operate_on_color<F>(&mut self, f: F)
+    fn operate_on_color<F>(&mut self, f: F)
     where
         F: Fn(&mut Color, i32),
     {
         let m = self.multiplier;
         if let Ok(color) = self.mut_color_at(self.cursor()) {
             f(color, m);
-        }
-    }
-
-    pub fn handle_events(&mut self, key_code: KeyCode, key_modifiers: KeyModifiers) {
-        if let Some(leader_mode) = self.get_leader_mode() {
-            match leader_mode {
-                LeaderMode::Space => {
-                    self.space_leader_mode_keymap(key_code, key_modifiers);
-                }
-            }
-            self.clear_leader_mode();
-            return;
-        }
-        match self.mode() {
-            Mode::Normal => self.normal_mode_keymap(key_modifiers, key_code),
-            Mode::Insert(_) => self.insert_mode_keymap(key_code, key_modifiers),
-            Mode::Color => self.color_mode_keymap(key_code, key_modifiers),
-        }
-    }
-
-    fn normal_mode_keymap(&mut self, key_modifiers: KeyModifiers, key_code: KeyCode) {
-        match (key_modifiers, key_code) {
-            (KeyModifiers::SHIFT, key_code) => match key_code {
-                KeyCode::Char('P') => self.paste_before(),
-                KeyCode::Char('A') => self.insert_at_end(),
-                KeyCode::Char('I') => self.insert_at_start(),
-                KeyCode::Char('R') => self.replace(),
-                _ => {}
-            },
-            (KeyModifiers::NONE, key_code) => match key_code {
-                KeyCode::Char('c') => self.color_leader_mode(),
-                KeyCode::Char('i') => self.insert_mode(),
-                KeyCode::Char('a') => self.append_mode(),
-                KeyCode::Char('d') => self.delete(),
-                KeyCode::Char('p') => self.paste_after(),
-                KeyCode::Char('y') => self.yank(),
-                KeyCode::Char(' ') => self.space_leader_mode(),
-                KeyCode::Left | KeyCode::Char('h') => self.move_cursor(-1, 0),
-                KeyCode::Down | KeyCode::Char('j') => self.move_cursor(0, 1),
-                KeyCode::Up | KeyCode::Char('k') => self.move_cursor(0, -1),
-                KeyCode::Right | KeyCode::Char('l') => self.move_cursor(1, 0),
-                _ => {}
-            },
-            (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
-                self.quit();
-            }
-            _ => {}
-        }
-    }
-
-    fn insert_mode_keymap(&mut self, key_code: KeyCode, key_modifiers: KeyModifiers) {
-        match (key_modifiers, key_code) {
-            (KeyModifiers::CONTROL, key_code) => match key_code {
-                KeyCode::Char('w') => self.insert_clear_chars(),
-                _ => {}
-            },
-            (KeyModifiers::NONE, key_code) => match key_code {
-                KeyCode::Enter => self.insert_confirm(),
-                KeyCode::Esc => self.normal_mode(),
-                KeyCode::Char(c) if "012345678293abcdef".contains(c) => self.insert_append_char(c),
-                KeyCode::Backspace => self.insert_delete_char(),
-                _ => {}
-            },
-            _ => {}
-        }
-    }
-
-    fn space_leader_mode_keymap(&mut self, key_code: KeyCode, key_modifiers: KeyModifiers) {
-        match (key_modifiers, key_code) {
-            (KeyModifiers::SHIFT, KeyCode::Char('P')) => self.paste_clipboard_before(),
-            (KeyModifiers::SHIFT, KeyCode::Char('R')) => self.replace_clipboard(),
-            (KeyModifiers::NONE, KeyCode::Char('p')) => self.paste_clipboard_after(),
-            (KeyModifiers::NONE, KeyCode::Char('y')) => self.yank_to_clipboard(),
-            _ => {}
-        }
-    }
-
-    fn color_mode_keymap(&mut self, key_code: KeyCode, key_modifiers: KeyModifiers) {
-        match (key_modifiers, key_code) {
-            (KeyModifiers::CONTROL, KeyCode::Char('a')) => self.inc_color_multiplier(),
-            (KeyModifiers::CONTROL, KeyCode::Char('x')) => self.dec_color_multiplier(),
-            (KeyModifiers::NONE, KeyCode::Char('r')) => {
-                self.operate_on_color(|color, m| color.add_red(m))
-            }
-            (KeyModifiers::SHIFT, KeyCode::Char('R')) => {
-                self.operate_on_color(|color, m| color.add_red(-m))
-            }
-            (KeyModifiers::NONE, KeyCode::Char('g')) => {
-                self.operate_on_color(|color, m| color.add_green(m))
-            }
-            (KeyModifiers::SHIFT, KeyCode::Char('G')) => {
-                self.operate_on_color(|color, m| color.add_green(-m))
-            }
-            (KeyModifiers::NONE, KeyCode::Char('b')) => {
-                self.operate_on_color(|color, m| color.add_blue(m))
-            }
-            (KeyModifiers::SHIFT, KeyCode::Char('B')) => {
-                self.operate_on_color(|color, m| color.add_blue(-m))
-            }
-            (KeyModifiers::NONE, KeyCode::Esc) => {
-                self.normal_mode();
-            }
-            _ => {}
         }
     }
 }

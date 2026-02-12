@@ -1,6 +1,4 @@
-use color::{Oklab, OpaqueColor};
-
-// TODO: Change to Oklab colorspace as the main representation of colors
+use color::{Lab, OpaqueColor, Srgb};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Color {
@@ -8,8 +6,6 @@ pub struct Color {
     g: u8,
     b: u8,
 }
-
-// TODO: remove channel, instead use the color's stuff
 
 type Channel = u8;
 
@@ -53,13 +49,29 @@ impl Color {
     }
 
     // TODO: change to color's functions here
-    pub fn add_red(&mut self, r: i32) {
-        self.r = saturating_add(self.r, r)
+    pub fn change_red(&mut self, amount: i32) {
+        self.r = saturating_add(self.r, amount)
     }
-    pub fn add_green(&mut self, g: i32) {
-        self.g = saturating_add(self.g, g)
+    pub fn change_green(&mut self, amount: i32) {
+        self.g = saturating_add(self.g, amount)
     }
-    pub fn add_blue(&mut self, b: i32) {
-        self.b = saturating_add(self.b, b)
+    pub fn change_blue(&mut self, amount: i32) {
+        self.b = saturating_add(self.b, amount)
+    }
+    pub fn adjust_lightness(&mut self, amount: i32) {
+        let (r, g, b) = self.rgb();
+        let color: OpaqueColor<Lab> = OpaqueColor::from_rgb8(r, g, b).convert();
+
+        let color = color.map_lightness(|l| l + amount as f32 / 256.).to_rgba8();
+        *self = Self::new(color.r, color.g, color.b)
+    }
+    pub fn adjust_hue(&mut self, amount: i32) {
+        let (r, g, b) = self.rgb();
+        let color: OpaqueColor<Lab> = OpaqueColor::from_rgb8(r, g, b).convert();
+
+        let color = color
+            .map_hue(|l| (l + amount as f32 / 256. * 360.) % 360.)
+            .to_rgba8();
+        *self = Self::new(color.r, color.g, color.b)
     }
 }
