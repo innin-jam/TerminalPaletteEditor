@@ -37,15 +37,15 @@ inside ./src/app/color.rs, switch to Oklab
   - [ ] s/S for saturation shift on selected color
   - [ ] multiplier indicator
   - [ ] more keybinds like above for othor colorspaces
+- [x] color fg text according to swatch color, so it's always readable
 
 - [ ] export as txt
 - [ ] import from txt
 
 - [ ] multiselection
-- [ ] color fg text according to swatch color, so it's always readable
 - [ ] toggle cursor, text
-- [ ] set bg color
 - [ ] undo/redo
+- [ ] option to set bg color
 
 ## References
 

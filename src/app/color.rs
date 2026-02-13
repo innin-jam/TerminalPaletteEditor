@@ -1,4 +1,4 @@
-use color::{Lab, OpaqueColor, Srgb};
+use color::{Lab, OpaqueColor};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Color {
@@ -49,13 +49,13 @@ impl Color {
     }
 
     // TODO: change to color's functions here
-    pub fn change_red(&mut self, amount: i32) {
+    pub fn adjust_red(&mut self, amount: i32) {
         self.r = saturating_add(self.r, amount)
     }
-    pub fn change_green(&mut self, amount: i32) {
+    pub fn adjust_green(&mut self, amount: i32) {
         self.g = saturating_add(self.g, amount)
     }
-    pub fn change_blue(&mut self, amount: i32) {
+    pub fn adjust_blue(&mut self, amount: i32) {
         self.b = saturating_add(self.b, amount)
     }
     pub fn adjust_lightness(&mut self, amount: i32) {
@@ -70,7 +70,7 @@ impl Color {
         let color: OpaqueColor<Lab> = OpaqueColor::from_rgb8(r, g, b).convert();
 
         let color = color
-            .map_hue(|l| (l + amount as f32 / 256. * 360.) % 360.)
+            .map_hue(|h| (h + amount as f32 / 256. * 360.) % 360.)
             .to_rgba8();
         *self = Self::new(color.r, color.g, color.b)
     }

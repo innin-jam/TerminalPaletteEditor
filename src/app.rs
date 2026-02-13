@@ -329,16 +329,16 @@ impl App {
                 }
             }
 
-            Action::ColorAddRed => self.operate_on_color(|color, m| color.change_red(m)),
-            Action::ColorAddGreen => self.operate_on_color(|color, m| color.change_green(m)),
-            Action::ColorAddBlue => self.operate_on_color(|color, m| color.change_blue(m)),
+            Action::ColorAddRed => self.operate_on_color(|color, m| color.adjust_red(m)),
+            Action::ColorAddGreen => self.operate_on_color(|color, m| color.adjust_green(m)),
+            Action::ColorAddBlue => self.operate_on_color(|color, m| color.adjust_blue(m)),
             Action::ColorAddHue => self.operate_on_color(|color, m| color.adjust_hue(m)),
             Action::ColorAddLightness => {
                 self.operate_on_color(|color, m| color.adjust_lightness(m))
             }
-            Action::ColorRemoveRed => self.operate_on_color(|color, m| color.change_red(-m)),
-            Action::ColorRemoveGreen => self.operate_on_color(|color, m| color.change_green(-m)),
-            Action::ColorRemoveBlue => self.operate_on_color(|color, m| color.change_blue(-m)),
+            Action::ColorRemoveRed => self.operate_on_color(|color, m| color.adjust_red(-m)),
+            Action::ColorRemoveGreen => self.operate_on_color(|color, m| color.adjust_green(-m)),
+            Action::ColorRemoveBlue => self.operate_on_color(|color, m| color.adjust_blue(-m)),
             Action::ColorRemoveHue => self.operate_on_color(|color, m| color.adjust_hue(-m)),
             Action::ColorRemoveLightness => {
                 self.operate_on_color(|color, m| color.adjust_lightness(-m))

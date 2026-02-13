@@ -1,3 +1,4 @@
+use color::{Lab, OpaqueColor};
 use ratatui::{
     Frame,
     buffer::Buffer,
@@ -29,6 +30,7 @@ impl Widget for Grid<'_> {
             let is_on_cursor = self.app.cursor() == i;
             let mut label = "".to_string();
             let mut color = Color::Reset;
+            let mut fg_color = Color::Reset;
 
             if is_on_cursor && let app::Mode::Insert(contents) = self.app.mode() {
                 label = contents.clone();
@@ -37,12 +39,14 @@ impl Widget for Grid<'_> {
                     crate::app::Color::try_from_hex_str(&contents).map(|c| c.rgb())
                 {
                     color = Color::Rgb { r, g, b };
+                    fg_color = find_foreground_color(r, g, b);
                 }
             } else {
                 if let Ok(rgb) = self.app.color_at(i) {
                     label = rgb.hex();
                     let (r, g, b) = rgb.rgb();
                     color = Color::Rgb { r, g, b };
+                    fg_color = find_foreground_color(r, g, b);
                 }
             }
 
@@ -62,8 +66,25 @@ impl Widget for Grid<'_> {
                     .alignment(Alignment::Center)
             }
             .bg(color)
+            .fg(fg_color)
             .render(cell, buf);
         }
+    }
+}
+
+fn find_foreground_color(r: u8, g: u8, b: u8) -> Color {
+    let color: OpaqueColor<Lab> = OpaqueColor::from_rgb8(r, g, b).convert();
+    let diff = 0.3
+        * if color.relative_luminance() > 0.5 {
+            -1.
+        } else {
+            1.
+        };
+    let color = color.map_lightness(|l| l + diff).to_rgba8();
+    Color::Rgb {
+        r: color.r,
+        g: color.g,
+        b: color.b,
     }
 }
 
