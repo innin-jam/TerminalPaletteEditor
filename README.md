@@ -47,6 +47,8 @@ inside ./src/app/color.rs, switch to Oklab
 - [ ] undo/redo
 - [ ] option to set bg color
 
+- [ ] LAB display
+
 ## References
 
 - [for text input](https://ratatui.rs/tutorials/json-editor/)

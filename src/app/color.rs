@@ -1,16 +1,9 @@
-use color::{Lab, OpaqueColor};
+use color::{Oklch, OpaqueColor, Srgb};
+use eyre::{Result, eyre};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
-}
-
-type Channel = u8;
-
-pub fn saturating_add(channel: Channel, rhs: i32) -> Channel {
-    (channel as i32 + rhs).clamp(0, u8::MAX as i32) as u8
+    color: OpaqueColor<Oklch>,
 }
 
 impl Color {
@@ -19,59 +12,48 @@ impl Color {
     }
 
     pub fn new(r: u8, g: u8, b: u8) -> Self {
-        Self { r, g, b }
+        let rgb = OpaqueColor::from_rgb8(r, g, b);
+        Self {
+            color: rgb.convert(),
+        }
     }
 
     pub fn hex(&self) -> String {
-        format!("{:02x}{:02x}{:02x}", self.r, self.g, self.b)
+        let [r, g, b, _] = self.color.convert::<Srgb>().to_rgba8().to_u8_array();
+        format!("{:02x}{:02x}{:02x}", r, g, b)
     }
 
     pub fn rgb(&self) -> (u8, u8, u8) {
-        (self.r, self.g, self.b)
+        let [r, g, b, _] = self.color.convert::<Srgb>().to_rgba8().to_u8_array();
+        (r, g, b)
     }
 
-    pub fn try_from_hex_str(hex: &str) -> Result<Self, ()> {
+    pub fn try_from_hex_str(hex: &str) -> Result<Self> {
         if hex.len() != 6 {
-            return Err(());
+            return Err(eyre!("Failed to parse color from: '{hex}'"));
         }
-
         let Ok(r) = u8::from_str_radix(&hex[0..2], 16) else {
-            return Err(());
+            return Err(eyre!("Failed to parse color from: '{hex}'"));
         };
         let Ok(g) = u8::from_str_radix(&hex[2..4], 16) else {
-            return Err(());
+            return Err(eyre!("Failed to parse color from: '{hex}'"));
         };
         let Ok(b) = u8::from_str_radix(&hex[4..6], 16) else {
-            return Err(());
+            return Err(eyre!("Failed to parse color from: '{hex}'"));
         };
-
         Ok(Self::new(r, g, b))
     }
 
-    // TODO: change to color's functions here
-    pub fn adjust_red(&mut self, amount: i32) {
-        self.r = saturating_add(self.r, amount)
+    pub fn adjust_lightness(&mut self, amount: f32) {
+        let lightness = &mut self.color.components[0];
+        *lightness = (*lightness + amount).clamp(0., 1.);
     }
-    pub fn adjust_green(&mut self, amount: i32) {
-        self.g = saturating_add(self.g, amount)
+    pub fn adjust_chroma(&mut self, amount: f32) {
+        let chroma = &mut self.color.components[1];
+        *chroma = (*chroma + amount).clamp(0., 1.);
     }
-    pub fn adjust_blue(&mut self, amount: i32) {
-        self.b = saturating_add(self.b, amount)
-    }
-    pub fn adjust_lightness(&mut self, amount: i32) {
-        let (r, g, b) = self.rgb();
-        let color: OpaqueColor<Lab> = OpaqueColor::from_rgb8(r, g, b).convert();
-
-        let color = color.map_lightness(|l| l + amount as f32 / 256.).to_rgba8();
-        *self = Self::new(color.r, color.g, color.b)
-    }
-    pub fn adjust_hue(&mut self, amount: i32) {
-        let (r, g, b) = self.rgb();
-        let color: OpaqueColor<Lab> = OpaqueColor::from_rgb8(r, g, b).convert();
-
-        let color = color
-            .map_hue(|h| (h + amount as f32 / 256. * 360.) % 360.)
-            .to_rgba8();
-        *self = Self::new(color.r, color.g, color.b)
+    pub fn adjust_hue(&mut self, amount: f32) {
+        let hue = &mut self.color.components[2];
+        *hue = (*hue + amount * 360.) % 360.;
     }
 }

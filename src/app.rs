@@ -14,7 +14,7 @@ pub struct App {
     mode: Mode,
     leader_mode: Option<LeaderMode>,
     register: Option<Color>,
-    multiplier: i32,
+    multiplier: f32,
 }
 
 pub enum Mode {
@@ -29,17 +29,13 @@ pub enum LeaderMode {
 
 enum Action {
     AppendMode,
-    ColorAddBlue,
-    ColorAddGreen,
+    ColorAddChroma,
     ColorAddHue,
     ColorAddLightness,
-    ColorAddRed,
     ColorMode,
-    ColorRemoveBlue,
-    ColorRemoveGreen,
+    ColorRemoveChroma,
     ColorRemoveHue,
     ColorRemoveLightness,
-    ColorRemoveRed,
     DecreaseMultiplier,
     Delete,
     IncreaseMultiplier,
@@ -79,7 +75,7 @@ impl App {
             mode: Mode::Normal,
             leader_mode: None,
             register: None,
-            multiplier: 64,
+            multiplier: 1. / 4.,
         }
     }
 
@@ -141,16 +137,12 @@ impl App {
             Mode::Color => match key_code {
                 KeyCode::Char('a') => Action::IncreaseMultiplier,
                 KeyCode::Char('x') => Action::DecreaseMultiplier,
-                KeyCode::Char('r') => Action::ColorAddRed,
-                KeyCode::Char('R') => Action::ColorRemoveRed,
-                KeyCode::Char('g') => Action::ColorAddGreen,
-                KeyCode::Char('G') => Action::ColorRemoveGreen,
-                KeyCode::Char('b') => Action::ColorAddBlue,
-                KeyCode::Char('B') => Action::ColorRemoveBlue,
                 KeyCode::Char('l') => Action::ColorAddLightness,
                 KeyCode::Char('L') => Action::ColorRemoveLightness,
                 KeyCode::Char('h') => Action::ColorAddHue,
                 KeyCode::Char('H') => Action::ColorRemoveHue,
+                KeyCode::Char('s') => Action::ColorAddChroma,
+                KeyCode::Char('S') => Action::ColorRemoveChroma,
                 KeyCode::Esc => Action::NormalMode,
                 _ => return None,
             },
@@ -180,7 +172,7 @@ impl App {
             }
 
             Action::DecreaseMultiplier => {
-                self.multiplier = self.multiplier.saturating_div(4).max(1);
+                self.multiplier = (self.multiplier / 4.).max(1. / 256.);
             }
 
             Action::InsertAtEnd => {
@@ -246,7 +238,7 @@ impl App {
             }
 
             Action::IncreaseMultiplier => {
-                self.multiplier = self.multiplier.saturating_mul(4).min(64);
+                self.multiplier = (self.multiplier * 4.).min(1.);
             }
 
             Action::InsertConfirm => {
@@ -321,7 +313,6 @@ impl App {
             Action::SpaceLeaderMode => {
                 self.leader_mode = Some(LeaderMode::Space);
             }
-
             Action::Yank => self.register = self.color_at(self.cursor()).ok(),
             Action::YankToClipboard => {
                 if let Ok(color) = self.color_at(self.cursor()) {
@@ -329,17 +320,13 @@ impl App {
                 }
             }
 
-            Action::ColorAddRed => self.operate_on_color(|color, m| color.adjust_red(m)),
-            Action::ColorAddGreen => self.operate_on_color(|color, m| color.adjust_green(m)),
-            Action::ColorAddBlue => self.operate_on_color(|color, m| color.adjust_blue(m)),
             Action::ColorAddHue => self.operate_on_color(|color, m| color.adjust_hue(m)),
+            Action::ColorAddChroma => self.operate_on_color(|color, m| color.adjust_chroma(m)),
             Action::ColorAddLightness => {
                 self.operate_on_color(|color, m| color.adjust_lightness(m))
             }
-            Action::ColorRemoveRed => self.operate_on_color(|color, m| color.adjust_red(-m)),
-            Action::ColorRemoveGreen => self.operate_on_color(|color, m| color.adjust_green(-m)),
-            Action::ColorRemoveBlue => self.operate_on_color(|color, m| color.adjust_blue(-m)),
             Action::ColorRemoveHue => self.operate_on_color(|color, m| color.adjust_hue(-m)),
+            Action::ColorRemoveChroma => self.operate_on_color(|color, m| color.adjust_chroma(-m)),
             Action::ColorRemoveLightness => {
                 self.operate_on_color(|color, m| color.adjust_lightness(-m))
             }
@@ -433,7 +420,7 @@ impl App {
 
     fn operate_on_color<F>(&mut self, f: F)
     where
-        F: Fn(&mut Color, i32),
+        F: Fn(&mut Color, f32),
     {
         let m = self.multiplier;
         if let Ok(color) = self.mut_color_at(self.cursor()) {
@@ -447,11 +434,8 @@ fn try_color_from_clipboard() -> Result<Color> {
         && let Ok(contents) = clipboard.get_contents()
     {
         // TODO: allow importing `#RRGGBB` and `(RR, GG, BB)`
-        if let Ok(color) = Color::try_from_hex_str(&contents) {
-            return Ok(color);
-        };
-
-        return Err(eyre!("Failed to parse clipboard contents"));
-    };
-    Err(eyre!("Can't access system clipboard"))
+        Color::try_from_hex_str(&contents)
+    } else {
+        Err(eyre!("Can't access system clipboard"))
+    }
 }
