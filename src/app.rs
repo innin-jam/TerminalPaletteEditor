@@ -69,7 +69,7 @@ impl App {
         App {
             grid: vec![Color::default()],
             cols: 8,
-            rows: 8,
+            rows: 2,
             running: true,
             cursor: 0,
             mode: Mode::Normal,
@@ -316,7 +316,7 @@ impl App {
             Action::Yank => self.register = self.color_at(self.cursor()).ok(),
             Action::YankToClipboard => {
                 if let Ok(color) = self.color_at(self.cursor()) {
-                    todo!("Yanked {} to clipboard", color.hex());
+                    // todo!("Yanked {} to clipboard", color.hex());
                 }
             }
 
