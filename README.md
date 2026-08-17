@@ -16,7 +16,7 @@ Normal mode:
 
 | Key | Function |
 | --- | --- |
-| HJKL / Arrow Keys | Move Cursor |
+| hjkl / Arrow Keys | Move Cursor |
 | y | Yank color to clipboard |
 | p | Paste color from clipboard |
 | <space>p | Paste color from system clipboard |
