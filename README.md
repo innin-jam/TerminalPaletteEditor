@@ -1,55 +1,35 @@
 # Terminal Palette Designer
 
-## Last Edit
+This is a small TUI program for creating color palettes.
 
-inside ./src/app/color.rs, switch to Oklab
+## Installation
 
-## Todo
+Inside cloned repo:
 
-- [x] center align grid
-- [x] black bg
-- [x] display cursor
-- [x] show hex code
-- [x] input as hex code (see json)
-  - [x] `i`: enter insert mode
-    - [x] `enter`: exit insert mode and save
-    - [x] `enter`: exit insert mode, ignore changes
-    - [x] `<C-w>`: delete text
-    - [ ] movable cursor with arrow keys during insert mode
-- [x] render inputted text
-- [x] `<S-a>`: add color to the right, enter insert mode
-- [x] `<S-a>`: add color to end, enter insert mode
-- [?] builtin clipboard
-- [x] `y`: yank to clipboard
-- [x] `d`: yank to clipboard, delete color
-- [x] `p`: paste clipboard after cursor
-- [x] `<S-p>`: paste clipboard before cursor
-- [x] leader key functionality
-- [x] `<S-r>`: replace color with clipboard at cursor
-- [?] system-clipboard compatibility
-- [?] `<space>y`: yank to system-clipboard
-- [x] `<space>p`: insert system-clipboard at cursor
-- [x] `<space><S-r>`: replace color with system-clipboard at cursor
-- [x] `h` `j` `k` `l`
-- [ ] color mode
-  - [x] h/H for hue shift on selected color
-  - [x] v/V for value shift on selected color
-  - [ ] s/S for saturation shift on selected color
-  - [ ] multiplier indicator
-  - [ ] more keybinds like above for othor colorspaces
-- [x] color fg text according to swatch color, so it's always readable
+```shell
+cargo run
+```
 
-- [ ] export as txt
-- [ ] import from txt
+## Keybinds
 
-- [ ] multiselection
-- [ ] toggle cursor, text
-- [ ] undo/redo
-- [ ] option to set bg color
+Normal mode:
 
-- [ ] LAB display
+| Key | Function |
+| --- | --- |
+| HJKL / Arrow Keys | Move Cursor |
+| y | Yank color to clipboard |
+| p | Paste color from clipboard |
+| <space>p | Paste color from system clipboard |
+| i | Edit color string |
+| c | Enter color mode |
+| <ctrl>c | quit |
 
-## References
+Color mode:
 
-- [for text input](https://ratatui.rs/tutorials/json-editor/)
-- [color palette (not generator) in terminal](https://crates.io/crates/material)
+| Key | Function |
+| --- | --- |
+| a | decrease multiplier |
+| x | decrease multiplier |
+| l/L | increase/decrease lightness |
+| h/H | increase/decraese hue |
+| s/S | increase/decraese chroma |
